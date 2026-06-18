@@ -1,0 +1,55 @@
+// 改造自原 src/app/api/share/list/route.ts。
+import { NextResponse } from 'next/server';
+import { prismaClient } from '@/utils/db';
+import { validateUserAndToken } from '@/utils/access';
+import { SHARE_BASE_URL } from '@/services/constants';
+
+const PAGE_SIZE = 25;
+
+export async function GET(request: Request) {
+  const { user, token } = await validateUserAndToken(request.headers.get('authorization'));
+  if (!user || !token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const rawCursor = url.searchParams.get('cursor');
+  let cursorCreatedAt: string | null = null;
+  let cursorId: string | null = null;
+  if (rawCursor) {
+    const sep = rawCursor.indexOf('|');
+    if (sep > 0) {
+      cursorCreatedAt = rawCursor.slice(0, sep);
+      cursorId = rawCursor.slice(sep + 1);
+    }
+  }
+
+  // SQLite 不支持复合 cursor or 查询，简化为基于 createdAt+id 的字符串比较
+  const rows = await prismaClient.bookShare.findMany({
+    where: { userId: user.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: PAGE_SIZE + 1,
+  });
+
+  const hasMore = rows.length > PAGE_SIZE;
+  const page = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+  const last = page.length > 0 ? page[page.length - 1] : null;
+  const nextCursor = hasMore && last ? `${last.createdAt.toISOString()}|${last.id}` : null;
+
+  return NextResponse.json({
+    shares: page.map((row) => ({
+      id: row.id,
+      token: row.token,
+      bookHash: row.bookHash,
+      title: row.bookTitle,
+      author: row.bookAuthor,
+      format: row.bookFormat,
+      size: Number(row.bookSize),
+      hasCfi: !!row.cfi,
+      expiresAt: row.expiresAt.toISOString(),
+      revokedAt: row.revokedAt?.toISOString() ?? null,
+      downloadCount: row.downloadCount,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    nextCursor,
+    shareUrlBase: SHARE_BASE_URL,
+  });
+}

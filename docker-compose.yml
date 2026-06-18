@@ -1,0 +1,25 @@
+services:
+  readest:
+    image: readest-lite:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: readest-lite
+    restart: unless-stopped
+    ports:
+      - "8225:8225"
+    env_file:
+      - .env
+    volumes:
+      # 数据卷：数据库 + 书籍 + 入站文件
+      - readest_data:/data
+      # 可选：挂载 .env 以便热更新配置（重启生效）
+      - ./.env:/app/.env:ro
+    environment:
+      # 即使 .env 漏配，也保证关键变量有默认值
+      - NODE_ENV=production
+      - PORT=8225
+      - HOSTNAME=0.0.0.0
+volumes:
+  readest_data:
+    driver: local

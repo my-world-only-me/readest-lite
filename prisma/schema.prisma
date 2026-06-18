@@ -1,0 +1,324 @@
+// Readest Lite — Prisma schema
+// 完全对齐原 Supabase schema.sql + 14 个 migration。
+// 不增减字段；用户表 auth.users 改为本地 users 表。
+// generator: prisma-client-js
+// datasource: sqlite (file:/data/db/readest.db)
+
+generator client {
+  provider = "prisma-client-js"
+  // 二进制数据用 Bytes；JSON 用 Json；数组用 String (序列化为 JSON)
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 用户表（替代 Supabase auth.users，单管理员账号）
+// ───────────────────────────────────────────────────────────────────────────
+model User {
+  id            String   @id // UUID v5(ADMIN_EMAIL)
+  email         String   @unique
+  encryptedPass String   // argon2id 哈希
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastSignInAt  DateTime?
+
+  books              Book[]
+  bookConfigs        BookConfig[]
+  bookNotes          BookNote[]
+  files              File[]
+  bookShares         BookShare[]
+  replicas           Replica[]
+  replicaKeys        ReplicaKey[]
+  sendAddress        SendAddress?
+  sendAllowedSenders SendAllowedSender[]
+  sendInbox          SendInbox[]
+  statBooks          StatBook[]
+  statPages          StatPage[]
+  usageStats         UsageStat[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// books (PK: user_id, book_hash)
+// ───────────────────────────────────────────────────────────────────────────
+model Book {
+  userId        String
+  bookHash      String
+  metaHash      String?
+  format        String?
+  title         String?
+  sourceTitle   String?
+  author        String?
+  // 原 "group" 字段（保留兼容，未使用）
+  group         String?
+  // text[] 在 SQLite 用 String (JSON 序列化)
+  tags          String?
+  progress      String? // JSON: [number, number]
+  readingStatus String?
+  groupId       String?
+  groupName     String?
+  // json → Json
+  metadata      String?
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @default(now())
+  deletedAt     DateTime?
+  uploadedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookHash])
+  @@index([userId, updatedAt])
+  @@index([userId, deletedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// book_configs (PK: user_id, book_hash)
+// ───────────────────────────────────────────────────────────────────────────
+model BookConfig {
+  userId       String
+  bookHash     String
+  metaHash     String?
+  location     String?
+  xpointer     String?
+  progress     String? // JSON
+  rsvpPosition String? // JSON
+  searchConfig String? // JSON
+  viewSettings String? // JSON
+  createdAt    DateTime? @default(now())
+  updatedAt    DateTime? @default(now())
+  deletedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookHash])
+  @@index([userId, updatedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// book_notes (PK: user_id, book_hash, id)
+// ───────────────────────────────────────────────────────────────────────────
+model BookNote {
+  userId     String
+  bookHash   String
+  metaHash   String?
+  id         String
+  type       String?
+  cfi        String?
+  xpointer0  String?
+  xpointer1  String?
+  text       String?
+  style      String?
+  color      String?
+  note       String?
+  page       Int?
+  global     Boolean?
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @default(now())
+  deletedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookHash, id])
+  @@index([userId, bookHash])
+  @@index([userId, updatedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// files (PK: id; UNIQUE: file_key)
+// ───────────────────────────────────────────────────────────────────────────
+model File {
+  id          String   @id @default(uuid())
+  userId      String
+  bookHash    String?
+  fileKey     String   @unique
+  fileSize    BigInt
+  replicaKind String?
+  replicaId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  deletedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt])
+  @@index([fileKey])
+  @@index([fileKey, deletedAt])
+  @@index([userId, replicaKind, replicaId])
+  @@index([userId, bookHash])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// book_shares (PK: id; UNIQUE: token_hash)
+// ───────────────────────────────────────────────────────────────────────────
+model BookShare {
+  id             String   @id @default(uuid())
+  tokenHash      String   @unique
+  token          String // 明文，仅 owner 可见
+  userId         String
+  bookHash       String
+  bookTitle      String
+  bookAuthor     String?
+  bookFormat     String
+  bookSize       BigInt
+  cfi            String?
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  downloadCount  Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, bookHash])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// replica_keys (PK: user_id, salt_id)
+// ───────────────────────────────────────────────────────────────────────────
+model ReplicaKey {
+  userId    String
+  saltId    String
+  alg       String
+  // bytea → Bytes (base64 in transit)
+  salt      Bytes
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, saltId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// replicas (PK: user_id, kind, replica_id) — CRDT 表
+// ───────────────────────────────────────────────────────────────────────────
+model Replica {
+  userId        String
+  kind          String
+  replicaId     String
+  // jsonb → Json
+  fieldsJsonb   String   @default("{}")
+  manifestJsonb String?
+  deletedAtTs   String? // Hlc 字符串
+  reincarnation String?
+  updatedAtTs   String // Hlc 字符串
+  schemaVersion Int      @default(1)
+  createdAt     DateTime @default(now())
+  modifiedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, kind, replicaId])
+  @@index([userId, kind, updatedAtTs])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// send_addresses (PK: user_id; UNIQUE: address)
+// ───────────────────────────────────────────────────────────────────────────
+model SendAddress {
+  userId    String   @id
+  address   String   @unique
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  rotatedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// send_allowed_senders (PK: id; UNIQUE: user_id, email)
+// ───────────────────────────────────────────────────────────────────────────
+model SendAllowedSender {
+  id        String   @id @default(uuid())
+  userId    String
+  email     String
+  status    String   @default("approved") // 'approved' | 'pending'
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+  @@index([userId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// send_inbox (PK: id)
+// ───────────────────────────────────────────────────────────────────────────
+model SendInbox {
+  id         String   @id @default(uuid())
+  userId     String
+  kind       String   // 'file' | 'url' | 'html'
+  source     String   // 'email' | 'extension'
+  payloadKey String?
+  url        String?
+  filename   String?
+  subjectTag String?
+  byteSize   BigInt   @default(0)
+  status     String   @default("pending") // 'pending' | 'claimed' | 'done' | 'failed'
+  claimedBy  String?
+  claimedAt  DateTime?
+  attempts   Int      @default(0)
+  error      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// stat_books (PK: user_id, book_hash)
+// ───────────────────────────────────────────────────────────────────────────
+model StatBook {
+  userId    String
+  bookHash  String
+  title     String   @default("")
+  authors   String   @default("")
+  updatedAt DateTime @default(now())
+  deletedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookHash])
+  @@index([userId, updatedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// stat_pages (PK: user_id, book_hash, page, start_time)
+// ───────────────────────────────────────────────────────────────────────────
+model StatPage {
+  userId     String
+  bookHash   String
+  page       Int
+  startTime  BigInt // Unix 秒
+  duration   Int    @default(0)
+  totalPages Int    @default(0)
+  ext        String? // JSON
+  updatedAt  DateTime @default(now())
+  deletedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookHash, page, startTime])
+  @@index([userId, updatedAt])
+  @@index([userId, bookHash, page, startTime])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// usage_stats (DeepL 翻译用量，替代原 Supabase RPC)
+// ───────────────────────────────────────────────────────────────────────────
+model UsageStat {
+  id        String   @id @default(uuid())
+  userId    String
+  usageType String // 'translation_chars'
+  usageDate String // 'YYYY-MM-DD'
+  increment Int
+  metadata  String? // JSON
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usageType, usageDate])
+}
