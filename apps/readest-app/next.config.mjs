@@ -60,6 +60,16 @@ const nextConfig = {
       // can't find fflate (only installed in this app's node_modules).
       fflate: path.resolve(__dirname, 'node_modules/fflate'),
       ...(appPlatform !== 'web' ? { '@tursodatabase/database-wasm': false } : {}),
+      // Readest Lite — 客户端 build 时把 argon2 / @prisma/client / jsonwebtoken
+      // 替换为空模块。这些是 server-only 依赖（含 Node 'fs'），客户端代码通过
+      // dynamic import 在运行时按需加载，但 webpack 仍会跟随静态 type import
+      // 解析依赖图，导致 'fs' not found 错误。
+      // 服务端构建（API routes）不受此影响，因为 Next.js 单独编译 server bundle。
+      ...(appPlatform === 'web' ? {
+        argon2: false,
+        '@prisma/client': false,
+        jsonwebtoken: false,
+      } : {}),
     };
     return config;
   },
@@ -70,6 +80,12 @@ const nextConfig = {
       // imports not implemented") — use a project-relative path.
       fflate: './node_modules/fflate',
       ...(appPlatform !== 'web' ? { '@tursodatabase/database-wasm': './src/utils/stub.ts' } : {}),
+      // Readest Lite — 同 webpack alias，客户端 stub server-only 模块
+      ...(appPlatform === 'web' ? {
+        argon2: './src/utils/stub.ts',
+        '@prisma/client': './src/utils/stub.ts',
+        jsonwebtoken: './src/utils/stub.ts',
+      } : {}),
     },
   },
   transpilePackages: [
