@@ -82,9 +82,9 @@ const nextConfig = {
       ...(appPlatform !== 'web' ? { '@tursodatabase/database-wasm': './src/utils/stub.ts' } : {}),
       // Readest Lite — 同 webpack alias，客户端 stub server-only 模块
       ...(appPlatform === 'web' ? {
-        argon2: './src/utils/stub.ts',
-        '@prisma/client': './src/utils/stub.ts',
-        jsonwebtoken: './src/utils/stub.ts',
+        argon2: './src/utils/stub-argon2.ts',
+        '@prisma/client': './src/utils/stub-prisma.ts',
+        jsonwebtoken: './src/utils/stub-jwt.ts',
       } : {}),
     },
   },
