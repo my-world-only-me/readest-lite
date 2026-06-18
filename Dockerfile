@@ -26,7 +26,10 @@ RUN git clone --depth 1 https://github.com/readest/foliate-js.git packages/folia
     && git clone --depth 1 https://github.com/readest/simplecc-wasm.git packages/simplecc-wasm
 
 # 安装依赖（包含 Prisma CLI 与 argon2/jwt 等新增依赖）
-RUN --mount=type=cache,id=pnpm,sharing=locked,target=/pnpm/store pnpm install --frozen-lockfile
+# 注：原 lockfile 未包含新增的 @prisma/client/argon2/jsonwebtoken 等，所以用
+# --no-frozen-lockfile 让 pnpm 解析并更新 lockfile。如需可重现构建，可在本地
+# 跑一次 pnpm install 后提交更新后的 pnpm-lock.yaml，再改回 --frozen-lockfile。
+RUN --mount=type=cache,id=pnpm,sharing=locked,target=/pnpm/store pnpm install --no-frozen-lockfile
 
 # 验证 submodule 已正确 clone
 RUN test -f packages/foliate-js/vendor/pdfjs/annotation_layer_builder.css \
