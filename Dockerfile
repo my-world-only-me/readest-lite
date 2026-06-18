@@ -8,21 +8,32 @@ FROM docker.io/library/node:24-slim AS dependencies
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
+# 安装 git 用于 clone 子模块（foliate-js 与 simplecc-wasm）
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # 拷贝 monorepo 配置 + 应用 package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/readest-app/package.json ./apps/readest-app/
 COPY patches/ ./patches/
-COPY packages/ ./packages/
+
+# Clone 必需的 git submodule（原项目用 .gitmodules，但 Docker 构建上下文里这些目录为空，
+# 这里直接 git clone --depth 1 取 main 分支）。
+# 仅 clone web 构建需要的两个：foliate-js（workspace 包 + pdfjs vendors）+ simplecc-wasm（dist/web/*）。
+# tauri/tauri-plugins/qcms/js-mdict 在 web 构建中不需要。
+RUN git clone --depth 1 https://github.com/readest/foliate-js.git packages/foliate-js \
+    && git clone --depth 1 https://github.com/readest/simplecc-wasm.git packages/simplecc-wasm
 
 # 安装依赖（包含 Prisma CLI 与 argon2/jwt 等新增依赖）
 RUN --mount=type=cache,id=pnpm,sharing=locked,target=/pnpm/store pnpm install --frozen-lockfile
 
-# 验证 git 子模块已初始化（与原 Dockerfile 一致）
+# 验证 submodule 已正确 clone
 RUN test -f packages/foliate-js/vendor/pdfjs/annotation_layer_builder.css \
     && test -d packages/simplecc-wasm/dist/web \
-    || { printf '\nERROR: Required git submodules are not initialized.\nRun: git submodule update --init packages/foliate-js packages/simplecc-wasm\n\n'; exit 1; }
+    || { printf '\nERROR: Required submodules are not initialized.\n'; exit 1; }
+
+# 拷贝 vendor 资源到 public/vendor
 RUN pnpm --filter @readest/readest-app setup-vendors
 
 # ── Stage 2: build ─────────────────────────────────────────────────────────
@@ -49,11 +60,17 @@ ENV NEXT_PUBLIC_OBJECT_STORAGE_TYPE=$NEXT_PUBLIC_OBJECT_STORAGE_TYPE
 ENV NEXT_PUBLIC_STORAGE_FIXED_QUOTA=$NEXT_PUBLIC_STORAGE_FIXED_QUOTA
 ENV NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA=$NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA
 
+# 从 dependencies 阶段拷贝已安装好的 node_modules 和 packages 子模块
 COPY --from=dependencies /app/node_modules /app/node_modules
 COPY --from=dependencies /app/apps/readest-app/node_modules /app/apps/readest-app/node_modules
 COPY --from=dependencies /app/apps/readest-app/public/vendor /app/apps/readest-app/public/vendor
+COPY --from=dependencies /app/packages/foliate-js /app/packages/foliate-js
 COPY --from=dependencies /app/packages/foliate-js/node_modules /app/packages/foliate-js/node_modules
+COPY --from=dependencies /app/packages/simplecc-wasm /app/packages/simplecc-wasm
+
+# 拷贝项目源码
 COPY . .
+
 WORKDIR /app/apps/readest-app
 
 # 生成 Prisma Client
@@ -86,7 +103,6 @@ COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest
 
 # 拷贝运行时需要的 node_modules（standalone trace 通常已包含 @prisma/client/argon2/jsonwebtoken，
 # 但 prisma CLI 二进制需要单独拷贝用于 db push）。
-# 使用 shell 通配符在 build stage 内拷贝，避免 Docker COPY 不支持 glob 的问题。
 COPY --from=build --chown=node:node /app/apps/readest-app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/node_modules/prisma ./node_modules/prisma

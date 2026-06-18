@@ -11,70 +11,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.1
-          run_install: false
-
-      - name: Get pnpm store
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Setup vendors
-        run: pnpm --filter @readest/readest-app setup-vendors
-
-      - name: Generate Prisma Client
-        run: pnpm --filter @readest/readest-app db:generate
-
-      - name: Build web
-        env:
-          NEXT_PUBLIC_APP_PLATFORM: web
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:8225
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8225/api
-          NEXT_PUBLIC_OBJECT_STORAGE_TYPE: local
-          NEXT_PUBLIC_STORAGE_FIXED_QUOTA: 0
-          NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA: 0
-        run: pnpm --filter @readest/readest-app build-web
-
-  docker:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+        # 不需要 submodules: recursive — Dockerfile 自己 git clone 需要的子模块
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Docker image (smoke test)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
           tags: readest-lite:ci
+          load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test container startup
+        run: |
+          docker run --rm -d --name readest-smoke \
+            -p 8225:8225 \
+            -e ADMIN_EMAIL=smoke@test.local \
+            -e ADMIN_PASSWORD=SmokeTestPass123! \
+            -e JWT_SECRET=ci-smoke-test-secret-32-chars-min \
+            -e DATABASE_URL=file:/tmp/db/readest.db \
+            -e BOOKS_DIR=/tmp/books \
+            -e INBOX_DIR=/tmp/inbox \
+            -e PUBLIC_BASE_URL=http://localhost:8225 \
+            -v readest_smoke_data:/tmp \
+            readest-lite:ci
+          sleep 10
+          # 健康检查：登录接口应该响应
+          curl -sf -X POST "http://localhost:8225/auth/v1/token?grant_type=password" \
+            -H "Content-Type: application/json" \
+            -H "apikey: anon" \
+            -d '{"email":"smoke@test.local","password":"SmokeTestPass123!"}' \
+            | grep -q access_token && echo "✅ Login OK" || (echo "❌ Login failed" && docker logs readest-smoke && exit 1)
+          # settings 端点
+          curl -sf "http://localhost:8225/auth/v1/settings" | grep -q disable_signup && echo "✅ Settings OK"
+          # 注册应被拒绝
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://localhost:8225/auth/v1/signup" \
+            -H "Content-Type: application/json" -H "apikey: anon" \
+            -d '{"email":"new@test.local","password":"123"}')
+          [ "$HTTP_CODE" = "403" ] && echo "✅ Signup disabled" || (echo "❌ Signup should be 403, got $HTTP_CODE" && exit 1)
+          docker stop readest-smoke || true
