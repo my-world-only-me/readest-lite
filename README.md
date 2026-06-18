@@ -2,8 +2,8 @@
 
 > Single-container, self-hostable fork of [Readest](https://github.com/readest/readest) — Supabase + R2/S3 replaced with SQLite + local filesystem, Pro/paywall removed, signup disabled.
 
-[![CI](https://github.com/USER/readest-lite/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
-[![Docker](https://github.com/USER/readest-lite/actions/workflows/docker-image.yml/badge.svg)](.github/workflows/docker-image.yml)
+[![CI](https://github.com/cshdotcom/readest-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/cshdotcom/readest-lite/actions/workflows/ci.yml)
+[![Docker](https://github.com/cshdotcom/readest-lite/actions/workflows/docker-image.yml/badge.svg)](https://github.com/cshdotcom/readest-lite/actions/workflows/docker-image.yml)
 
 ## What changed vs upstream
 
