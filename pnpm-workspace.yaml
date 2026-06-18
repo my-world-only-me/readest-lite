@@ -15,6 +15,10 @@ allowBuilds:
 
 onlyBuiltDependencies:
   - sharp
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - argon2
 
 patchedDependencies:
   '@ai-sdk/provider-utils@3.0.25': patches/@ai-sdk__provider-utils@3.0.25.patch
