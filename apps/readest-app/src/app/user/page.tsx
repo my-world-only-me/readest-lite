@@ -14,7 +14,6 @@ import { navigateToLibrary } from '@/utils/nav';
 import { eventDispatcher } from '@/utils/event';
 import { Toast } from '@/components/Toast';
 import LegalLinks from '@/components/LegalLinks';
-import Spinner from '@/components/Spinner';
 import ProfileHeader from './components/Header';
 import UserInfo from './components/UserInfo';
 import UsageStats from './components/UsageStats';
@@ -34,7 +33,6 @@ const ProfilePage = () => {
   const { token, user, refresh } = useAuth();
   const { safeAreaInsets, isRoundedWindow } = useThemeStore();
 
-  const [loading, setLoading] = useState(false);
   const [showStorageManager, setShowStorageManager] = useState(false);
   const [showSharedLinksManager, setShowSharedLinksManager] = useState(false);
   const searchParams = useSearchParams();
@@ -116,11 +114,6 @@ const ProfilePage = () => {
       >
         <ProfileHeader onGoBack={handleGoBack} />
         <div className='w-full min-w-60 max-w-4xl py-10'>
-          {loading && (
-            <div className='fixed inset-0 z-50 flex items-center justify-center'>
-              <Spinner loading className='text-gray-900' />
-            </div>
-          )}
           <div className='sm:bg-base-200 overflow-hidden rounded-lg sm:p-6 sm:shadow-md'>
             <div className='flex flex-col gap-y-8'>
               <div className='flex flex-col gap-y-8 px-6'>
