@@ -46,7 +46,10 @@ RUN pnpm --filter @readest/readest-app setup-vendors
 
 # 在 dependencies 阶段就生成 Prisma Client（此时网络可用，prisma CLI 可正常自检）。
 # 后续 build 阶段直接复用生成好的 client，不再调 prisma generate。
+# PRISMA_NO_AUTO_INSTALL=true 禁用 prisma 6.x 的"自动安装自己"行为
+# （默认会 pnpm add prisma@<version> -D --silent，在 Docker 中失败）
 COPY prisma ./prisma
+ENV PRISMA_NO_AUTO_INSTALL=true
 RUN cd apps/readest-app && pnpm exec prisma generate --schema=../../prisma/schema.prisma
 
 # ── Stage 2: build ─────────────────────────────────────────────────────────
