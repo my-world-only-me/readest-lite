@@ -7,7 +7,6 @@ import { useAuth } from '@/context/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
 import { getAPIBaseUrl } from '@/services/environment';
 import { isInboxDrainEnabled, setInboxDrainEnabled } from '@/services/send/devicePrefs';
-import { getAccessToken } from '@/utils/access';
 import { navigateToLogin } from '@/utils/nav';
 import { eventDispatcher } from '@/utils/event';
 import type { DBSendAllowedSender, DBSendInboxItem } from '@/types/sendRecords';
