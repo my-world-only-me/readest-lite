@@ -46,11 +46,17 @@ RUN pnpm --filter @readest/readest-app setup-vendors
 
 # 在 dependencies 阶段就生成 Prisma Client（此时网络可用，prisma CLI 可正常自检）。
 # 后续 build 阶段直接复用生成好的 client，不再调 prisma generate。
-# PRISMA_NO_AUTO_INSTALL=true 禁用 prisma 6.x 的"自动安装自己"行为
-# （默认会 pnpm add prisma@<version> -D --silent，在 Docker 中失败）
+#
+# 关键：用 node 直接调用 prisma CLI 的 entry point（node_modules/prisma/build/index.js），
+# 而不是 pnpm exec prisma。Prisma 6.x 在通过 pnpm exec 调用时，会检测到 prisma CLI
+# "未正确安装"（实际是装了的，但 pnpm exec 的包装让它误判），从而触发自动安装行为
+# 'pnpm add prisma@<version> -D --silent'，这在 Docker 中会失败。
+#
+# 同时设置 PRISMA_NO_AUTO_INSTALL=true 作为双保险。
 COPY prisma ./prisma
 ENV PRISMA_NO_AUTO_INSTALL=true
-RUN cd apps/readest-app && pnpm exec prisma generate --schema=../../prisma/schema.prisma
+RUN cd apps/readest-app && \
+    node node_modules/prisma/build/index.js generate --schema=../../prisma/schema.prisma
 
 # ── Stage 2: build ─────────────────────────────────────────────────────────
 FROM docker.io/library/node:24-slim AS build
