@@ -66,7 +66,8 @@ export const deeplProvider: TranslationProvider = {
         const translation = data.translations?.[i];
         if (translation?.daily_usage) {
           saveDailyUsage(translation.daily_usage);
-          deeplProvider.quotaExceeded = data.daily_usage >= quota;
+          // Pro 体系删除 — quota 已移除，quotaExceeded 永远 false
+          deeplProvider.quotaExceeded = false;
         }
         return translation?.text || line;
       });
