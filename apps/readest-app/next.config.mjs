@@ -86,10 +86,15 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       nunjucks: 'nunjucks/browser/nunjucks.js',
-      // Turbopack rejects absolute paths in resolveAlias ("server relative
-      // imports not implemented") — use a project-relative path.
       fflate: './node_modules/fflate',
       ...(appPlatform !== 'web' ? { '@tursodatabase/database-wasm': './src/utils/stub.ts' } : {}),
+      // Turbopack（dev mode）stub server-only 模块
+      // 生产构建用 webpack（--webpack flag），不走 turbopack
+      ...(appPlatform === 'web' ? {
+        argon2: './src/utils/stub-argon2.ts',
+        '@prisma/client': './src/utils/stub-prisma.ts',
+        jsonwebtoken: './src/utils/stub-jwt.ts',
+      } : {}),
     },
   },
   transpilePackages: [
