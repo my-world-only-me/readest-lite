@@ -1,25 +1,35 @@
+# Readest Lite — Docker Compose
+# 与 https://cshdotcom.github.io/readestl/deploy.html 教程保持一致
+# 使用方式：
+#   1. cp .env.example .env
+#   2. 修改 .env 中的 ADMIN_EMAIL / ADMIN_PASSWORD
+#   3. docker compose up -d
 services:
-  readest:
-    image: readest-lite:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+  readest-lite:
+    image: ghcr.io/cshdotcom/readest-lite:latest
+    # 本地构建用：
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: readest-lite
     restart: unless-stopped
     ports:
-      - "8225:8225"
-    env_file:
-      - .env
+      - "${PORT:-8225}:8225"
     volumes:
-      # 数据卷：数据库 + 书籍 + 入站文件
-      - readest_data:/data
-      # 可选：挂载 .env 以便热更新配置（重启生效）
-      - ./.env:/app/.env:ro
+      # 数据持久化：bind mount 到当前目录的 ./data，便于备份与迁移
+      - ./data:/data
     environment:
-      # 即使 .env 漏配，也保证关键变量有默认值
-      - NODE_ENV=production
+      # 必填：管理员账号（首次启动自动创建）
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      # 可选：默认 8225
       - PORT=8225
-      - HOSTNAME=0.0.0.0
-volumes:
-  readest_data:
-    driver: local
+      # 可选：JWT 密钥。不设则用 ADMIN_EMAIL+ADMIN_PASSWORD 派生（生产环境建议显式设置）
+      # - JWT_SECRET=
+      # 可选：DeepL 翻译 API（不设则翻译功能不可用）
+      # - DEEPL_FREE_API_KEYS=
+      # - DEEPL_PRO_API_KEYS=
+      # 可选：AI 聊天网关（不设则 AI 功能不可用）
+      # - AI_GATEWAY_API_KEY=
+      # 可选：对外访问 URL（反向代理场景下必填，否则签名 URL 指向 localhost）
+      # - PUBLIC_BASE_URL=https://read.yourdomain.com

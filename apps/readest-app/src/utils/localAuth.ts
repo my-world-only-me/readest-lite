@@ -6,7 +6,13 @@ import argon2 from 'argon2';
 import { randomUUID } from 'crypto';
 import { prismaClient } from './db';
 
-const JWT_SECRET = process.env['JWT_SECRET'] || 'dev-insecure-secret-change-me';
+// JWT_SECRET 必填，但若用户未设置则用 ADMIN_EMAIL+ADMIN_PASSWORD 派生（部署页只列 ADMIN_EMAIL/PASSWORD/PORT 为必填）
+// 这样开箱即用，但生产环境强烈建议显式设置 JWT_SECRET
+const JWT_SECRET = process.env['JWT_SECRET'] || (
+  process.env['ADMIN_EMAIL'] && process.env['ADMIN_PASSWORD']
+    ? `readest-lite-${process.env['ADMIN_EMAIL']}-${process.env['ADMIN_PASSWORD']}`
+    : 'dev-insecure-secret-change-me'
+);
 const JWT_EXP_SECONDS = parseInt(process.env['JWT_EXP_SECONDS'] || '604800', 10); // 7 天
 const REFRESH_EXP_SECONDS = parseInt(process.env['REFRESH_EXP_SECONDS'] || '2592000', 10); // 30 天
 const ISSUER = 'readest-lite';
