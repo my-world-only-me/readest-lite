@@ -162,8 +162,8 @@ function UserEditDialog({ user, onClose, onSaved }: {
         storageQuotaMB: parseInt(storageQuotaMB) || 0,
         translationQuotaKB: parseInt(translationQuotaKB) || 0,
       };
-      if (password) body.password = password;
-      if (!user) body.email = email;
+      if (password) body['password'] = password;
+      if (!user) body['email'] = email;
 
       const url = user
         ? `${getAPIBaseUrl()}/admin/users/${user.id}`
