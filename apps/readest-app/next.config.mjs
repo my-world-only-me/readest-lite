@@ -50,17 +50,37 @@ const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['isows', '@prisma/client', 'argon2', 'jsonwebtoken', '.prisma/client'],
   allowedDevOrigins: ['192.168.2.120'],
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       nunjucks: 'nunjucks/browser/nunjucks.js',
-      // `js-mdict` is consumed as TS source via tsconfig paths from
-      // `packages/js-mdict/src/`; its sources `import 'fflate'` directly.
-      // Without an alias, webpack walks up from that source location and
-      // can't find fflate (only installed in this app's node_modules).
       fflate: path.resolve(__dirname, 'node_modules/fflate'),
       ...(appPlatform !== 'web' ? { '@tursodatabase/database-wasm': false } : {}),
     };
+    // 客户端构建时把 server-only 模块设为空（避免 'fs' not found）
+    // 服务端构建时保留真实模块（serverExternalPackages 会处理）
+    if (!isServer && appPlatform === 'web') {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        os: false,
+        crypto: false,
+        stream: false,
+        net: false,
+        tls: false,
+        zlib: false,
+        http: false,
+        https: false,
+        'node-gyp-build': false,
+      };
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        argon2: false,
+        '@prisma/client': false,
+        jsonwebtoken: false,
+      };
+    }
     return config;
   },
   turbopack: {
