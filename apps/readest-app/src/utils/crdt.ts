@@ -6,6 +6,10 @@
 // HLC 字符串格式：`${physicalMs:13-hex}-${counter:8-hex}-${deviceId}`
 // 字典序 = 时间序（13-hex 物理时间在前）。
 
+// 重用 types/replica.ts 的类型，避免重复定义造成类型不兼容
+import type { ReplicaRow, Hlc, FieldEnvelope, FieldsObject, Manifest } from '@/types/replica';
+export type { ReplicaRow, Hlc, FieldEnvelope, FieldsObject, Manifest };
+
 export const hlcMax = (a: string | null, b: string | null): string | null => {
   if (a == null) return b;
   if (b == null) return a;
@@ -76,20 +80,6 @@ export interface ReplicaMergeInput {
   reincarnation: string | null;
   updatedAtTs: string;
   schemaVersion: number;
-}
-
-export interface ReplicaRow {
-  user_id: string;
-  kind: string;
-  replica_id: string;
-  fields_jsonb: Record<string, FieldEnvelope>;
-  manifest_jsonb: { files: unknown[]; schemaVersion: number } | null;
-  deleted_at_ts: string | null;
-  reincarnation: string | null;
-  updated_at_ts: string;
-  schema_version: number;
-  created_at?: string;
-  modified_at?: string;
 }
 
 // 完整行合并（与 migration 005 等价）。
