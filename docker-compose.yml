@@ -24,6 +24,10 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       # 可选：默认 8225
       - PORT=8225
+      # 数据持久化路径（默认值，一般不需修改）
+      - DATABASE_URL=file:/data/db/readest.db
+      - BOOKS_DIR=/data/books
+      - INBOX_DIR=/data/inbox
       # 可选：JWT 密钥。不设则用 ADMIN_EMAIL+ADMIN_PASSWORD 派生（生产环境建议显式设置）
       # - JWT_SECRET=
       # 可选：DeepL 翻译 API（不设则翻译功能不可用）

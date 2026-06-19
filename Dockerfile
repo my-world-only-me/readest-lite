@@ -120,6 +120,8 @@ ENV NODE_ENV=production
 ENV PORT=8225
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_URL="file:/data/db/readest.db"
+ENV BOOKS_DIR="/data/books"
+ENV INBOX_DIR="/data/inbox"
 WORKDIR /app
 
 # 安装最小运行时依赖：openssl（argon2 需要）、sqlite3（prisma 需要）
