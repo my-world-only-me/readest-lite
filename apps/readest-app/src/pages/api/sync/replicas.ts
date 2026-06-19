@@ -85,13 +85,17 @@ export async function POST(req: NextRequest) {
       },
     });
     const localRow = existing
-      ? {
-          userId: existing.userId, kind: existing.kind, replicaId: existing.replicaId,
+      ? ({
+          user_id: existing.userId,
+          kind: existing.kind,
+          replica_id: existing.replicaId,
           fields_jsonb: JSON.parse(existing.fieldsJsonb || '{}'),
           manifest_jsonb: existing.manifestJsonb ? JSON.parse(existing.manifestJsonb) : null,
-          deleted_at_ts: existing.deletedAtTs, reincarnation: existing.reincarnation,
-          updated_at_ts: existing.updatedAtTs, schema_version: existing.schemaVersion,
-        }
+          deleted_at_ts: (existing.deletedAtTs as unknown as ReplicaRow['deleted_at_ts']) ?? null,
+          reincarnation: existing.reincarnation,
+          updated_at_ts: existing.updatedAtTs as unknown as ReplicaRow['updated_at_ts'],
+          schema_version: existing.schemaVersion,
+        } as ReplicaRow)
       : null;
     const mergedRow = crdtMergeReplica(localRow, {
       userId: row.user_id, kind: row.kind, replicaId: row.replica_id,
