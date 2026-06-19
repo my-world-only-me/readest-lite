@@ -8,6 +8,10 @@ set -e
 echo "[entrypoint] initializing data directories..."
 mkdir -p /data/db /data/books/uploads /data/books/covers /data/inbox
 
+# 设置 DATABASE_URL（Prisma schema 用 env("DATABASE_URL") 读取）
+export DATABASE_URL="file:/data/db/readest.db"
+echo "[entrypoint] DATABASE_URL=$DATABASE_URL"
+
 # 如果 config.json 不存在，写入默认配置
 if [ ! -f /data/config.json ]; then
   echo '{"version":1,"createdAt":"'$(date -Iseconds)'"}' > /data/config.json

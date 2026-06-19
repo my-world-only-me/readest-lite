@@ -94,9 +94,6 @@
     "db:studio": "prisma studio --schema=../../prisma/schema.prisma",
     "init-admin": "node --experimental-strip-types scripts/init-admin.ts"
   },
-  "prisma": {
-    "schema": "../../prisma/schema.prisma"
-  },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.48",
     "@ai-sdk/react": "^3.0.49",

@@ -55,7 +55,10 @@ RUN pnpm --filter @readest/readest-app setup-vendors
 # Prisma 5/6 在 generate 时会尝试 'pnpm add prisma@<version> -D --silent' 自动安装
 # 自己（即使已装），这在 Docker 中因 lockfile 冲突失败。
 # Workaround：临时把 pnpm 替换为 stub（什么都不做、返回 0），跑完 generate 再恢复。
+#
+# DATABASE_URL 必须设置，否则 prisma generate 会报 getConfig Validation Error
 COPY prisma ./prisma
+ENV DATABASE_URL="file:/tmp/readest.db"
 RUN printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/pnpm-stub && chmod +x /usr/local/bin/pnpm-stub
 RUN cp $(which pnpm) /usr/local/bin/pnpm.real && mv /usr/local/bin/pnpm-stub $(which pnpm)
 RUN cd apps/readest-app && \
@@ -116,6 +119,7 @@ FROM docker.io/library/node:24-slim AS production
 ENV NODE_ENV=production
 ENV PORT=8225
 ENV HOSTNAME=0.0.0.0
+ENV DATABASE_URL="file:/data/db/readest.db"
 WORKDIR /app
 
 # 安装最小运行时依赖：openssl（argon2 需要）、sqlite3（prisma 需要）

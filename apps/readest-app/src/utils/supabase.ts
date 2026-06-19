@@ -27,12 +27,14 @@ export type { AuthUser };
 // ───────────────────────────────────────────────────────────────────────────
 const getSupabaseUrl = (): string => {
   if (typeof window !== 'undefined') {
-    // 浏览器：始终用当前页面 origin，无论用户从 localhost / IP / 域名访问都正确
-    return window.location.origin;
+    // 浏览器：用当前 origin + /api 前缀
+    // 因为 auth 兼容路由在 app/api/auth/[...path]/route.ts，
+    // 对应 URL 是 /api/auth/v1/token
+    // supabase.ts 会拼 ${getSupabaseUrl()}/auth/v1/token = ${origin}/api/auth/v1/token
+    return `${window.location.origin}/api`;
   }
-  // 服务端 SSR：用 env 变量（运行时由 PUBLIC_BASE_URL 注入到 runtime-config.js）
-  // NEXT_PUBLIC_SUPABASE_URL 在构建时设为空字符串，所以需要 fallback
-  return process.env['NEXT_PUBLIC_SUPABASE_URL'] || 'http://localhost:8225';
+  // 服务端 SSR
+  return (process.env['NEXT_PUBLIC_SUPABASE_URL'] || 'http://localhost:8225') + '/api';
 };
 
 // ───────────────────────────────────────────────────────────────────────────
