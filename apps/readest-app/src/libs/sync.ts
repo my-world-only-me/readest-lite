@@ -81,8 +81,14 @@ export class SyncClient {
     );
 
     if (!res.ok) {
-      const error = await res.json();
-      throw new Error(`Failed to pull changes: ${error.error || res.statusText}`);
+      let errorMsg = res.statusText || 'Unknown error';
+      try {
+        const error = await res.json();
+        if (typeof error === 'string') errorMsg = error;
+        else if (error?.error) errorMsg = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+        else if (error?.message) errorMsg = error.message;
+      } catch { /* not JSON */ }
+      throw new Error(`Failed to pull changes: ${errorMsg}`);
     }
 
     return res.json();
@@ -110,8 +116,14 @@ export class SyncClient {
     );
 
     if (!res.ok) {
-      const error = await res.json();
-      throw new Error(`Failed to push changes: ${error.error || res.statusText}`);
+      let errorMsg = res.statusText || 'Unknown error';
+      try {
+        const error = await res.json();
+        if (typeof error === 'string') errorMsg = error;
+        else if (error?.error) errorMsg = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+        else if (error?.message) errorMsg = error.message;
+      } catch { /* not JSON */ }
+      throw new Error(`Failed to push changes: ${errorMsg}`);
     }
 
     return res.json();
