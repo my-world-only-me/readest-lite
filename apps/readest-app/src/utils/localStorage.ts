@@ -196,5 +196,13 @@ export const getFileSize = async (fileKey: string, bucketName?: string): Promise
 
 export const createWriteStreamForKey = (fileKey: string, bucketName?: string) => {
   const localPath = resolveLocalPath(fileKey, bucketName);
+  // 同步创建父目录（fileKey 可能是多级路径如 <uid>/Readest/Books/<hash>.epub）
+  const dir = path.dirname(localPath);
+  try {
+    // 同步 mkdirSync，因为 createWriteStream 是同步返回的
+    require('fs').mkdirSync(dir, { recursive: true });
+  } catch {
+    // 目录已存在或其他非致命错误，忽略
+  }
   return createWriteStream(localPath);
 };
