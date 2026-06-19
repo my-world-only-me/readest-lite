@@ -124,9 +124,9 @@ ENV BOOKS_DIR="/data/books"
 ENV INBOX_DIR="/data/inbox"
 WORKDIR /app
 
-# 安装最小运行时依赖：openssl（argon2 需要）、sqlite3（prisma 需要）
+# 安装最小运行时依赖：openssl（argon2 需要）、sqlite3（prisma 需要）、curl（健康检查）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl sqlite3 ca-certificates \
+    openssl sqlite3 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 拷贝 standalone 构建产物
