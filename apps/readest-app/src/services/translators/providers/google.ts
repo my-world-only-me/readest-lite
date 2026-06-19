@@ -1,52 +1,40 @@
 import { stubTranslation as _ } from '@/utils/misc';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { isTauriAppPlatform } from '@/services/environment';
 import { normalizeToShortLang } from '@/utils/lang';
+import { getAPIBaseUrl } from '@/services/environment';
+import { getAccessToken } from '@/utils/access';
 import { TranslationProvider } from '../types';
 
+// Readest Lite — Google 翻译走服务器代理
+// 客户端调 /api/translate/google，服务器代理到 translate.googleapis.com
+// 这样国外服务器可以访问 Google，国内客户端通过服务器中转
 export const googleProvider: TranslationProvider = {
   name: 'google',
   label: _('Google Translate'),
   translate: async (text: string[], sourceLang: string, targetLang: string): Promise<string[]> => {
     if (!text.length) return [];
 
-    const results: string[] = [];
+    const token = await getAccessToken();
+    if (!token) throw new Error('Not authenticated');
 
-    const translationPromises = text.map(async (line, index) => {
-      if (!line?.trim().length) {
-        results[index] = line;
-        return;
-      }
-
-      const url = new URL('https://translate.googleapis.com/translate_a/single');
-      url.searchParams.append('client', 'gtx');
-      url.searchParams.append('dt', 't');
-      url.searchParams.append('sl', normalizeToShortLang(sourceLang).toLowerCase() || 'auto');
-      url.searchParams.append('tl', normalizeToShortLang(targetLang).toLowerCase());
-      url.searchParams.append('q', line);
-
-      const fetch = isTauriAppPlatform() ? tauriFetch : window.fetch;
-      const response = await fetch(url.toString());
-
-      if (!response.ok) {
-        throw new Error(`Translation failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (Array.isArray(data) && Array.isArray(data[0])) {
-        const translatedText = data[0]
-          .filter((segment) => Array.isArray(segment) && segment[0])
-          .map((segment) => segment[0])
-          .join('');
-
-        results[index] = translatedText || line;
-      } else {
-        results[index] = line;
-      }
+    const url = `${getAPIBaseUrl()}/translate/google`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text,
+        sourceLang: normalizeToShortLang(sourceLang).toLowerCase() || 'auto',
+        targetLang: normalizeToShortLang(targetLang).toLowerCase(),
+      }),
     });
 
-    await Promise.all(translationPromises);
+    if (!response.ok) {
+      throw new Error(`Google translate proxy failed: ${response.status}`);
+    }
 
-    return results;
+    const data = await response.json();
+    return data.translations || text;
   },
 };

@@ -16,8 +16,20 @@ import type { DictionaryProvider, DictionaryLookupOutcome } from '../types';
 import { BUILTIN_PROVIDER_IDS } from '../types';
 import { stubTranslation as _ } from '@/utils/misc';
 import { isTauriAppPlatform } from '@/services/environment';
+import { getAPIBaseUrl } from '@/services/environment';
+import { getAccessToken } from '@/utils/access';
 
 const isTauri = isTauriAppPlatform();
+
+// Readest Lite — Wikipedia 通过服务器代理访问
+async function proxiedFetch(url: string, signal?: AbortSignal): Promise<Response> {
+  const token = await getAccessToken();
+  const proxyUrl = `${getAPIBaseUrl()}/proxy/wiki?url=${encodeURIComponent(url)}`;
+  return fetch(proxyUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
+  });
+}
 
 export const wikipediaProvider: DictionaryProvider = {
   id: BUILTIN_PROVIDER_IDS.wikipedia,
@@ -27,9 +39,9 @@ export const wikipediaProvider: DictionaryProvider = {
     const bookLang = typeof ctx.lang === 'string' ? ctx.lang : ctx.lang?.[0];
     const langCode = bookLang ? bookLang.split('-')[0]! : 'en';
     try {
-      const response = await fetch(
+      const response = await proxiedFetch(
         `https://${langCode}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(word)}`,
-        { signal: ctx.signal },
+        ctx.signal,
       );
       if (!response.ok) {
         return { ok: false, reason: 'error', message: `HTTP ${response.status}` };

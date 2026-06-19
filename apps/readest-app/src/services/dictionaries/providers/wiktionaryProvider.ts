@@ -18,6 +18,18 @@ import type { DictionaryProvider, DictionaryLookupOutcome } from '../types';
 import { BUILTIN_PROVIDER_IDS } from '../types';
 import { fetchChineseDefinition } from '../chineseDict';
 import { normalizedLangCode } from '@/utils/lang';
+import { getAPIBaseUrl } from '@/services/environment';
+import { getAccessToken } from '@/utils/access';
+
+// Readest Lite — Wiktionary 通过服务器代理访问
+async function proxiedFetch(url: string, signal?: AbortSignal): Promise<Response> {
+  const token = await getAccessToken();
+  const proxyUrl = `${getAPIBaseUrl()}/proxy/wiki?url=${encodeURIComponent(url)}`;
+  return fetch(proxyUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
+  });
+}
 import { stubTranslation as _ } from '@/utils/misc';
 
 type Definition = {
@@ -103,9 +115,9 @@ const renderWiktionary = async (
   signal: AbortSignal,
   onNavigate?: (word: string) => void,
 ): Promise<DictionaryLookupOutcome> => {
-  const response = await fetch(
+  const response = await proxiedFetch(
     `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
-    { signal },
+    signal,
   );
   if (!response.ok) {
     return { ok: false, reason: 'error', message: `HTTP ${response.status}` };

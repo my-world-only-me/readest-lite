@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const totalFiles = files.length;
     const totalSize = files.reduce((sum, f) => sum + Number(f.fileSize), 0);
     const usage = totalSize;
-    const quota = Number.MAX_SAFE_INTEGER;
+    const quota = 100 * 1024 * 1024 * 1024 * 1024; // 100TB
     const usagePercentage = 0;
 
     const grouped = new Map<string | null, { count: number; size: number }>();

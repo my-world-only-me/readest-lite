@@ -48,7 +48,7 @@ const nextConfig = {
   // Configure assetPrefix or else the server won't properly resolve your assets.
   assetPrefix: '',
   reactStrictMode: true,
-  serverExternalPackages: ['isows', '@prisma/client', 'argon2', 'jsonwebtoken', '.prisma/client'],
+  serverExternalPackages: ['isows', 'isomorphic-ws', 'ws', '@prisma/client', 'argon2', 'jsonwebtoken', '.prisma/client'],
   allowedDevOrigins: ['192.168.2.120'],
   webpack: (config, { isServer }) => {
     config.resolve.alias = {

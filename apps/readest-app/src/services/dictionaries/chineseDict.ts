@@ -1,3 +1,6 @@
+import { getAPIBaseUrl } from '@/services/environment';
+import { getAccessToken } from '@/utils/access';
+
 export type ChineseDefinition = {
   partOfSpeech: string;
   meanings: string[];
@@ -11,9 +14,14 @@ export type ChineseEntry = {
 
 const WIKTIONARY_API = 'https://en.wiktionary.org/w/api.php';
 
+// Readest Lite — 通过服务器代理访问 Wiktionary
 async function fetchWikitext(word: string): Promise<string | null> {
   const url = `${WIKTIONARY_API}?action=parse&page=${encodeURIComponent(word)}&prop=wikitext&format=json&origin=*`;
-  const response = await fetch(url);
+  const token = await getAccessToken();
+  const proxyUrl = `${getAPIBaseUrl()}/proxy/wiki?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!response.ok) return null;
   const json = await response.json();
   return json?.parse?.wikitext?.['*'] ?? null;
