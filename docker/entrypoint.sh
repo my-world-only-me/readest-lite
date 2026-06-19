@@ -15,13 +15,16 @@ fi
 
 # prisma db push 同步 schema（无 migration 历史，直接 push）
 # 用 apps/readest-app/node_modules 下的 prisma CLI（完整依赖树）
+# 注意：不用 pipefail + tail，因为管道会吞掉 prisma 的退出码
 echo "[entrypoint] pushing prisma schema..."
 cd /app/apps/readest-app
-node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false 2>&1 | tail -5
+node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false --skip-generate
+echo "[entrypoint] prisma schema pushed."
 
 # 初始化管理员账号（幂等：存在则更新密码，不存在则创建）
 echo "[entrypoint] ensuring admin user..."
-node --experimental-strip-types /app/apps/readest-app/scripts/init-admin.ts 2>&1 | tail -3
+node --experimental-strip-types /app/apps/readest-app/scripts/init-admin.ts
+echo "[entrypoint] admin user ensured."
 
 # 启动 Next.js standalone server
 echo "[entrypoint] starting Next.js on port ${PORT:-8225}..."
