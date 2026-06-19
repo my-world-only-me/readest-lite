@@ -88,6 +88,7 @@ import ImportFromFolderDialog, {
   ImportFromFolderResult,
 } from './components/ImportFromFolderDialog';
 import ImportFromUrlDialog from './components/ImportFromUrlDialog';
+import RemoteDownloadDialog from './components/RemoteDownloadDialog';
 import { convertToEpubWithWorker } from '@/services/send/conversion/conversionWorker';
 import { getClipOptions } from '@/services/send/clipOptions';
 import { invoke } from '@tauri-apps/api/core';
@@ -180,6 +181,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     searchParams?.get('opds') === 'true',
   );
   const [showImportFromUrl, setShowImportFromUrl] = useState(false);
+  const [showRemoteDownload, setShowRemoteDownload] = useState(false);
   const [loading, setLoading] = useState(false);
   // Seed from the library store: if we already have books in memory (the
   // common reader → library return path), treat the page as loaded
@@ -1367,6 +1369,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
             appService?.canReadExternalDir ? handleImportBooksFromDirectory : undefined
           }
           onImportBookFromUrl={isTauriAppPlatform() ? () => setShowImportFromUrl(true) : undefined}
+          onDownloadFromUrl={() => setShowRemoteDownload(true)}
           onOpenCatalogManager={handleShowOPDSDialog}
           onToggleSelectMode={() => handleSetSelectMode(!isSelectMode)}
           onSelectAll={handleSelectAll}
@@ -1547,6 +1550,10 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         isOpen={showImportFromUrl}
         onClose={() => setShowImportFromUrl(false)}
         onSubmit={handleImportBookFromUrl}
+      />
+      <RemoteDownloadDialog
+        open={showRemoteDownload}
+        onClose={() => setShowRemoteDownload(false)}
       />
       <Toast />
     </div>
