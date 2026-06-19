@@ -100,11 +100,16 @@ export async function GET(req: NextRequest) {
       readingStatus: r.readingStatus,
       sourceTitle: r.sourceTitle,
       metadata: r.metadata ? JSON.parse(r.metadata) : null,
+      created_at: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
+      updated_at: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
+      deleted_at: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
+      uploaded_at: r.uploadedAt ? new Date(r.uploadedAt).getTime() : null,
+      // 兼容前端 camelCase 字段（部分客户端代码同时读两种命名）
       createdAt: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
       updatedAt: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
       deletedAt: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
       uploadedAt: r.uploadedAt ? new Date(r.uploadedAt).getTime() : null,
-    }));
+    })) as unknown as SyncRecord[];
   };
 
   const queryBookConfigs = async () => {
@@ -128,9 +133,11 @@ export async function GET(req: NextRequest) {
       rsvp_position: r.rsvpPosition,
       search_config: r.searchConfig,
       view_settings: r.viewSettings,
+      updated_at: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
+      deleted_at: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
       updatedAt: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
       deletedAt: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
-    }));
+    })) as unknown as SyncRecord[];
   };
 
   const queryBookNotes = async () => {
@@ -159,10 +166,13 @@ export async function GET(req: NextRequest) {
       color: r.color,
       note: r.note,
       global: r.global,
+      created_at: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
+      updated_at: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
+      deleted_at: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
       createdAt: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
       updatedAt: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
       deletedAt: r.deletedAt ? new Date(r.deletedAt).getTime() : null,
-    }));
+    })) as unknown as SyncRecord[];
   };
 
   try {
