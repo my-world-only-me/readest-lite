@@ -35,19 +35,19 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, unknown> = {};
 
     if (password && typeof password === 'string' && password.length > 0) {
-      updateData.encryptedPass = await argon2.hash(password);
+      updateData['encryptedPass'] = await argon2.hash(password);
     }
     if (displayName !== undefined) {
-      updateData.displayName = displayName || null;
+      updateData['displayName'] = displayName || null;
     }
     if (typeof storageQuotaMB === 'number') {
-      updateData.storageQuotaMB = storageQuotaMB;
+      updateData['storageQuotaMB'] = storageQuotaMB;
     }
     if (typeof translationQuotaKB === 'number') {
-      updateData.translationQuotaKB = translationQuotaKB;
+      updateData['translationQuotaKB'] = translationQuotaKB;
     }
     if (email && typeof email === 'string') {
-      updateData.email = email.toLowerCase().trim();
+      updateData['email'] = email.toLowerCase().trim();
     }
 
     const updated = await prismaClient.user.update({
