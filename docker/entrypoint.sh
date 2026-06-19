@@ -26,8 +26,9 @@ node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.pr
 echo "[entrypoint] prisma schema pushed."
 
 # 初始化管理员账号（幂等：存在则更新密码，不存在则创建）
+# 用自包含的 .mjs 脚本，不依赖 TypeScript 源码链
 echo "[entrypoint] ensuring admin user..."
-node --experimental-strip-types /app/apps/readest-app/scripts/init-admin.ts
+node /app/apps/readest-app/scripts/init-admin.mjs
 echo "[entrypoint] admin user ensured."
 
 # 启动 Next.js standalone server
