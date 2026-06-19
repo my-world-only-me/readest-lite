@@ -184,22 +184,32 @@ class LocalAuthClient {
   }
 
   async signInWithPassword({ email, password }: { email: string; password: string }) {
-    const resp = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: 'anon' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      return { data: { session: null, user: null }, error: { message: data.error_description || data.error || 'login failed' } };
+    try {
+      const resp = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: 'anon' },
+        body: JSON.stringify({ email, password }),
+      });
+      // 安全解析 JSON — 如果响应不是 JSON（如 HTML 错误页），给友好错误
+      let data: any;
+      try {
+        data = await resp.json();
+      } catch {
+        return { data: { session: null, user: null }, error: { message: `Server returned status ${resp.status}` } };
+      }
+      if (!resp.ok) {
+        return { data: { session: null, user: null }, error: { message: data?.error_description || data?.error || `Login failed (status ${resp.status})` } };
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+      this.emit('SIGNED_IN', data);
+      return { data: { session: data, user: data.user }, error: null };
+    } catch (err) {
+      return { data: { session: null, user: null }, error: { message: err instanceof Error ? err.message : 'Network error during login' } };
     }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-    }
-    this.emit('SIGNED_IN', data);
-    return { data: { session: data, user: data.user }, error: null };
   }
 
   onAuthStateChange(listener: AuthStateListener) {
