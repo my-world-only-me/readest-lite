@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   // SQLite 不支持复合 cursor or 查询，简化为基于 createdAt+id 的字符串比较
   const rows = await prismaClient.bookShare.findMany({
     where: { userId: user.id },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }],
     take: PAGE_SIZE + 1,
   });
 

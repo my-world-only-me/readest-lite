@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
         ...(bookParam ? { bookHash: bookParam } : {}),
         ...(metaHashParam ? { metaHash: metaHashParam } : {}),
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' as const },
       // SQLite 无 1000 行限制；为兼容原行为仍按页拉
       take: 100000,
     });
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
         ...(bookParam ? { bookHash: bookParam } : {}),
         ...(metaHashParam ? { metaHash: metaHashParam } : {}),
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' as const },
       take: 100000,
     });
     (results as unknown as { configs: SyncRecord[] }).configs = rows.map((r) => ({
@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
         ...(bookParam ? { bookHash: bookParam } : {}),
         ...(metaHashParam ? { metaHash: metaHashParam } : {}),
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' as const },
       take: 100000,
     });
     (results as unknown as { notes: SyncRecord[] }).notes = rows.map((r) => ({
@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
           userId: user.id,
           OR: [{ updatedAt: { gt: since } }, { deletedAt: { gt: since } }],
         },
-        orderBy: { updatedAt: 'asc' },
+        orderBy: { updatedAt: 'asc' as const },
         take: 100000,
       });
       const spQuery = {
@@ -218,7 +218,7 @@ export async function GET(req: NextRequest) {
           OR: [{ updatedAt: { gt: since } }, { deletedAt: { gt: since } }],
           ...(bookParam ? { bookHash: bookParam } : {}),
         },
-        orderBy: { updatedAt: 'asc' },
+        orderBy: { updatedAt: 'asc' as const },
       };
       const sp = statsLimit > 0
         ? await prismaClient.statPage.findMany({ ...spQuery, take: statsLimit })

@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const page = parseInt(reqQuery.page as string) || 1;
     const pageSize = Math.min(parseInt(reqQuery.pageSize as string) || 50, 100);
     const sortBy = (reqQuery.sortBy as string) || 'createdAt';
-    const sortOrder = (reqQuery.sortOrder as string) === 'asc' ? 'asc' : 'desc';
+    const sortOrder = ((reqQuery.sortOrder as string) === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
     const bookHash = reqQuery.bookHash as string | undefined;
     const search = reqQuery.search as string | undefined;
 

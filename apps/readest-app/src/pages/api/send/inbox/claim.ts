@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: user.id,
       OR: [{ status: 'pending' }, { status: 'claimed', claimedAt: { lt: leaseExpired } }],
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'asc' as const },
   });
   if (!candidate) return res.status(200).json({ item: null });
 

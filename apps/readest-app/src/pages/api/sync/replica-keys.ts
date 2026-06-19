@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   if (!user || !token) return errorResponse(401, 'AUTH', 'Not authenticated');
   const rows = await prismaClient.replicaKey.findMany({
     where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: 'desc' as const },
   });
   return NextResponse.json({ rows: rows.map(toResponseRow) }, { status: 200 });
 }

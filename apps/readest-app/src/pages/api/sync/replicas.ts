@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       const tasks = cursors.map(async ({ kind, since }) => {
         const rows = await prismaClient.replica.findMany({
           where: { userId: user.id, kind, ...(since ? { updatedAtTs: { gt: since } } : {}) },
-          orderBy: { updatedAtTs: 'asc' },
+          orderBy: { updatedAtTs: 'asc' as const },
           take: 1000,
         });
         return { kind, rows: rows.map(rowToResponse) };
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await prismaClient.replica.findMany({
     where: { userId: user.id, kind, ...(since ? { updatedAtTs: { gt: since } } : {}) },
-    orderBy: { updatedAtTs: 'asc' },
+    orderBy: { updatedAtTs: 'asc' as const },
     take: 1000,
   });
   return NextResponse.json({ rows: rows.map(rowToResponse) }, { status: 200 });
