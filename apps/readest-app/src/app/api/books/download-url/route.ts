@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     // 存入本地文件系统
     await putObject(fileKey, buffer, response.headers.get('content-type') || 'application/octet-stream');
 
-    // 写入数据库
+    // 写入 File 表
     const existing = await prismaClient.file.findUnique({ where: { fileKey } });
     if (!existing) {
       await prismaClient.file.create({
@@ -120,6 +120,28 @@ export async function POST(req: NextRequest) {
         },
       });
     }
+
+    // v8.1.0：修复"书架不显示"——同步写入 Book 表
+    // 之前只写 File 表，sync 拉不到 Book 记录，书架永远看不到这本书
+    // uploadedAt 字段是 useBooksSync.updateLibrary 过滤书架可见性的关键
+    const titleFromFile = bookFilename.replace(/\.[^.]+$/, '');
+    await prismaClient.book.upsert({
+      where: { userId_bookHash: { userId: user.id, bookHash: hash } },
+      create: {
+        userId: user.id,
+        bookHash: hash,
+        title: titleFromFile,
+        format: ext.toUpperCase(),
+        uploadedAt: new Date(),
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      update: {
+        deletedAt: null,
+        uploadedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
 
     return NextResponse.json({
       bookHash: hash,

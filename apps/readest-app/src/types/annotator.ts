@@ -3,7 +3,6 @@ export type AnnotationToolType =
   | 'highlight'
   | 'annotate'
   | 'search'
-  | 'websearch'
   | 'dictionary'
   | 'translate'
   | 'tts'

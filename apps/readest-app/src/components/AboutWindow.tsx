@@ -130,7 +130,7 @@ export const AboutWindow = () => {
             dir='ltr'
           >
             <p className='text-neutral-content text-sm'>
-              © {new Date().getFullYear()} Bilingify LLC. All rights reserved.
+              © {new Date().getFullYear()} cshdotcom. Based on Readest. AGPL-3.0.
             </p>
 
             <p className='text-neutral-content text-xs'>
@@ -146,8 +146,12 @@ export const AboutWindow = () => {
             </p>
             <p className='text-neutral-content text-xs'>
               Source code is available at{' '}
-              <Link href='https://github.com/readest/readest' className='text-blue-500 underline'>
+              <Link href='https://github.com/cshdotcom/readest-lite' className='text-blue-500 underline'>
                 GitHub
+              </Link>
+              {' · '}
+              <Link href='https://cshdotcom.github.io/readestl/' className='text-blue-500 underline'>
+                Website
               </Link>
               .
             </p>

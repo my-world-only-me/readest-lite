@@ -40,6 +40,8 @@ const uuidV5 = (name, namespace = '6ba7b810-9dad-11d1-80b4-00c04fd430c8') => {
 async function main() {
   const email = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
   const password = process.env.ADMIN_PASSWORD || '';
+  // v8.1.0：可选的管理员显示名
+  const displayName = (process.env.ADMIN_USERNAME || '').trim() || null;
   if (!email || !password) {
     throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be set');
   }
@@ -70,6 +72,13 @@ async function main() {
       needUpdate = true;
     }
 
+    // v8.1.0：如果 env 设了 ADMIN_USERNAME 且 DB 里 displayName 为空，回填一次
+    // 不覆盖用户在 UI 里改过的 displayName
+    if (displayName && !existing.displayName) {
+      updateData.displayName = displayName;
+      needUpdate = true;
+    }
+
     if (needUpdate) {
       await prisma.user.update({ where: { id: userId }, data: updateData });
       console.log(`[init] admin user updated: ${email}`);
@@ -84,6 +93,7 @@ async function main() {
         email,
         encryptedPass,
         role: 'admin',
+        displayName, // v8.1.0：null 时 DB 写 NULL
       },
     });
     console.log(`[init] admin user created: ${email} (${userId})`);
