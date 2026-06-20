@@ -26,8 +26,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const totalFiles = files.length;
     const totalSize = files.reduce((sum, f) => sum + Number(f.fileSize), 0);
     const usage = totalSize;
-    const quota = 100 * 1024 * 1024 * 1024 * 1024; // 100TB
-    const usagePercentage = 0;
+    // v8.5: 返回用户实际配额（0 = 无限时返回 100TB 兼容前端）
+    const storageQuotaMB = user.storageQuotaMB ?? 0;
+    const quota = storageQuotaMB > 0
+      ? storageQuotaMB * 1024 * 1024
+      : 100 * 1024 * 1024 * 1024 * 1024;
+    const usagePercentage = quota > 0 ? Math.min(100, (usage / quota) * 100) : 0;
 
     const grouped = new Map<string | null, { count: number; size: number }>();
     files.forEach((f) => {

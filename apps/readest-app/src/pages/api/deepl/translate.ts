@@ -57,6 +57,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const endpoint = isProKey(apiKey) ? DEFAULT_DEEPL_PRO_API : DEFAULT_DEEPL_FREE_API;
   const totalChars = text.reduce((s: number, t: string) => s + (t?.length ?? 0), 0);
 
+  // v8.5: enforce translationQuotaKB（0 = 无限；1 KB = 1024 字符）
+  const translationQuotaKB = user.translationQuotaKB ?? 0;
+  if (translationQuotaKB > 0) {
+    const usedChars = await getCurrentUsage(user.id);
+    const quotaChars = translationQuotaKB * 1024;
+    if (usedChars + totalChars > quotaChars) {
+      return res.status(403).json({
+        error: 'Translation quota exceeded',
+        usage: usedChars,
+        quota: quotaChars,
+        quotaKB: translationQuotaKB,
+      });
+    }
+  }
+
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',

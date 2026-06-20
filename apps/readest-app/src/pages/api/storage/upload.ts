@@ -6,7 +6,7 @@
 // 4. uploadUrl 返回本地签名 PUT URL（/api/storage/_put）
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { corsAllMethods, runMiddleware } from '@/utils/cors';
-import { validateUserAndToken } from '@/utils/access';
+import { validateUserAndToken, getActualStorageUsage } from '@/utils/access';
 import { getDownloadSignedUrl, getUploadSignedUrl, isSafeObjectKeyName } from '@/utils/object';
 import { prismaClient } from '@/utils/db';
 
@@ -38,9 +38,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (!fileName || !fileSize) return res.status(400).json({ error: 'Missing file info' });
 
-    // Pro 体系已删除 → 100TB 配额
-    const usage = 0;
-    const quota = 100 * 1024 * 1024 * 1024 * 1024; // 100TB
+    // v8.5: enforce storageQuotaMB（0 = 无限）
+    const storageQuotaMB = user.storageQuotaMB ?? 0;
+    if (storageQuotaMB > 0) {
+      const currentUsage = await getActualStorageUsage(user.id);
+      const newSize = Number(fileSize);
+      const quotaBytes = storageQuotaMB * 1024 * 1024;
+      if (currentUsage + newSize > quotaBytes) {
+        return res.status(403).json({
+          error: 'Storage quota exceeded',
+          usage: currentUsage,
+          quota: quotaBytes,
+          quotaMB: storageQuotaMB,
+        });
+      }
+    }
+
+    // 兼容前端：0 = 无限时返回 100TB
+    const usage = storageQuotaMB > 0 ? await getActualStorageUsage(user.id) : 0;
+    const quota = storageQuotaMB > 0
+      ? storageQuotaMB * 1024 * 1024
+      : 100 * 1024 * 1024 * 1024 * 1024;
 
     const fileKey = `${user.id}/${fileName}`;
     const existing = await prismaClient.file.findUnique({ where: { fileKey } });
@@ -61,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const uploadUrl = await getUploadSignedUrl(fileKey, objSize, 1800);
-    return res.status(200).json({ uploadUrl, fileKey, usage: usage + fileSize, quota });
+    return res.status(200).json({ uploadUrl, fileKey, usage: usage + Number(fileSize), quota });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Something went wrong' });

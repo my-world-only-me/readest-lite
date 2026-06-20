@@ -1,8 +1,32 @@
 // 服务器端 Google 翻译代理
-// v8.0：强制登录（与词典代理同策略，所有翻译/词典代理均要求登录后使用）
-// v8.2.0：加 GET health check，让用户能在浏览器直接访问验证代理状态
+// v8.0：强制登录
+// v8.2.0：加 GET health check
+// v8.5.0：enforce translationQuotaKB + UsageStat 记账
 import { NextRequest, NextResponse } from 'next/server';
 import { validateUserAndToken } from '@/utils/access';
+import { prismaClient } from '@/utils/db';
+
+const getCurrentUsage = async (userId: string): Promise<number> => {
+  const today = new Date().toISOString().split('T')[0]!;
+  const rows = await prismaClient.usageStat.findMany({
+    where: { userId, usageType: 'translation_chars', usageDate: today },
+    select: { increment: true },
+  });
+  return rows.reduce((s, r) => s + r.increment, 0);
+};
+
+const trackUsage = async (userId: string, increment: number): Promise<void> => {
+  const today = new Date().toISOString().split('T')[0]!;
+  await prismaClient.usageStat.create({
+    data: {
+      userId,
+      usageType: 'translation_chars',
+      usageDate: today,
+      increment,
+      metadata: JSON.stringify({ source: 'google_proxy' }),
+    },
+  });
+};
 
 // GET /api/translate/google
 // 浏览器直接访问会带 cookie/localStorage token？不会。
@@ -45,6 +69,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'text must be an array' }, { status: 400 });
     }
 
+    // v8.5: enforce translationQuotaKB（0 = 无限；1 KB = 1024 字符）
+    const totalChars = text.reduce((s: number, t: string) => s + (t?.length ?? 0), 0);
+    const translationQuotaKB = user.translationQuotaKB ?? 0;
+    if (translationQuotaKB > 0) {
+      const usedChars = await getCurrentUsage(user.id);
+      const quotaChars = translationQuotaKB * 1024;
+      if (usedChars + totalChars > quotaChars) {
+        return NextResponse.json({
+          error: 'Translation quota exceeded',
+          usage: usedChars,
+          quota: quotaChars,
+          quotaKB: translationQuotaKB,
+        }, { status: 403 });
+      }
+    }
+
     const sl = sourceLang?.toLowerCase() || 'auto';
     const tl = targetLang?.toLowerCase();
 
@@ -85,7 +125,14 @@ export async function POST(req: NextRequest) {
       }
     }));
 
-    return NextResponse.json({ translations: results });
+    // v8.5: 记账
+    await trackUsage(user.id, totalChars);
+
+    return NextResponse.json({
+      translations: results,
+      usage: await getCurrentUsage(user.id),
+      quota: translationQuotaKB > 0 ? translationQuotaKB * 1024 : 0,
+    });
   } catch (error) {
     console.error('Google translate proxy error:', error);
     return NextResponse.json(
