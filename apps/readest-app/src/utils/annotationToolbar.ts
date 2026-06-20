@@ -7,6 +7,7 @@ export const ALL_ANNOTATION_TOOL_TYPES: AnnotationToolType[] = [
   'highlight',
   'annotate',
   'search',
+  'websearch',
   'dictionary',
   'translate',
   'tts',
@@ -14,13 +15,15 @@ export const ALL_ANNOTATION_TOOL_TYPES: AnnotationToolType[] = [
   'share',
 ];
 
-// Default toolbar: the eight pre-existing tools in their original order.
+// Default toolbar: the eight pre-existing tools + v8.0 websearch in their original order.
 // 'share' starts hidden in the Available tray per the #4014 design.
+// 'websearch' (v8.0) is enabled by default so users see the new feature immediately.
 export const DEFAULT_ANNOTATION_TOOLBAR_ITEMS: AnnotationToolType[] = [
   'copy',
   'highlight',
   'annotate',
   'search',
+  'websearch',
   'dictionary',
   'translate',
   'tts',

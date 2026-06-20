@@ -1,16 +1,14 @@
 // 服务器端 Google 翻译代理
-// 不强制登录——词典和翻译是基本功能，应该对已登录用户可用
+// v8.0：强制登录（与词典代理同策略，所有翻译/词典代理均要求登录后使用）
 import { NextRequest, NextResponse } from 'next/server';
 import { validateUserAndToken } from '@/utils/access';
 
 export async function POST(req: NextRequest) {
-  // 可选 auth：有 token 就校验，没有也允许（翻译是基本功能）
+  // v8.0：强制 auth —— 翻译代理必须登录
   const authHeader = req.headers.get('authorization');
-  if (authHeader) {
-    const { user, token } = await validateUserAndToken(authHeader);
-    if (!user || !token) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+  const { user, token } = await validateUserAndToken(authHeader);
+  if (!user || !token) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   try {

@@ -74,6 +74,7 @@ import AnnotationPopup from './AnnotationPopup';
 import DictionaryPopup from './DictionaryPopup';
 import DictionarySheet from './DictionarySheet';
 import TranslatorPopup from './TranslatorPopup';
+import WebSearchPopup from '../WebSearchPopup';
 import useShortcuts from '@/hooks/useShortcuts';
 import ProofreadPopup from './ProofreadPopup';
 import { setProofreadRulesVisibility } from '@/app/reader/components/ProofreadRules';
@@ -142,6 +143,7 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
   const [showDictionaryPopup, setShowDictionaryPopup] = useState(false);
   const [showDeepLPopup, setShowDeepLPopup] = useState(false);
   const [showProofreadPopup, setShowProofreadPopup] = useState(false);
+  const [showWebSearchPopup, setShowWebSearchPopup] = useState(false);
   const [trianglePosition, setTrianglePosition] = useState<Position>();
   const [annotPopupPosition, setAnnotPopupPosition] = useState<Position>();
   const [dictPopupPosition, setDictPopupPosition] = useState<Position>();
@@ -1198,6 +1200,14 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
     eventDispatcher.dispatch('search-term', { term, bookKey });
   };
 
+  // v8.0: 弹出 WebSearchPopup（不跳转新页面）
+  // 选中文字 → 点"外部搜索"按钮 → 弹悬浮窗，不离开当前阅读器
+  const handleWebSearch = () => {
+    if (!selection || !selection.text) return;
+    setShowAnnotPopup(false);
+    setShowWebSearchPopup(true);
+  };
+
   const handleDictionary = () => {
     if (!selection || !selection.text) return;
     // System-dictionary path: when the user has opted in via Settings →
@@ -1588,6 +1598,8 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
         return { tooltipText: _(label), Icon, onClick: handleAnnotate };
       case 'search':
         return { tooltipText: _(label), Icon, onClick: handleSearch };
+      case 'websearch':
+        return { tooltipText: _(label), Icon, onClick: handleWebSearch };
       case 'dictionary':
         return { tooltipText: _(label), Icon, onClick: handleDictionary };
       case 'translate':
@@ -1702,6 +1714,15 @@ const Annotator: React.FC<{ bookKey: string; contentInsets: Insets }> = ({
           onManage={() => {
             handleDismissPopupAndSelection();
             setProofreadRulesVisibility(true);
+          }}
+        />
+      )}
+      {showWebSearchPopup && selection?.text && (
+        <WebSearchPopup
+          query={selection.text}
+          onClose={() => {
+            setShowWebSearchPopup(false);
+            handleDismissPopupAndSelection();
           }}
         />
       )}

@@ -1,5 +1,5 @@
 // 服务器端 Wikipedia/Wiktionary 代理
-// 不强制登录
+// v8.0：强制登录（与翻译代理同策略，词典查询要求登录后使用）
 import { NextRequest, NextResponse } from 'next/server';
 import { validateUserAndToken } from '@/utils/access';
 
@@ -13,11 +13,11 @@ const isAllowedHost = (hostname: string): boolean =>
   ALLOWED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
 
 export async function GET(req: NextRequest) {
-  // 可选 auth
+  // v8.0：强制 auth —— 词典代理必须登录
   const authHeader = req.headers.get('authorization');
-  if (authHeader) {
-    const { user, token } = await validateUserAndToken(authHeader);
-    if (!user || !token) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  const { user, token } = await validateUserAndToken(authHeader);
+  if (!user || !token) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   const targetUrl = req.nextUrl.searchParams.get('url');
