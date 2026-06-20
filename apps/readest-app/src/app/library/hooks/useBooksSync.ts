@@ -19,6 +19,14 @@ export const useBooksSync = () => {
   const { useSyncInited, syncedBooks, syncBooks, lastSyncedAtBooks } = useSync();
   const isPullingRef = useRef(false);
 
+  // v8.3.0: 用户切换检测
+  // - prevUserIdRef 记录上次的 user.id
+  // - replaceModeRef 标记下次 updateLibrary 走 replace 模式（不 merge）
+  // - didInitialPushRef 标记登录后是否已 push 过一次未同步的书
+  const prevUserIdRef = useRef<string | null>(null);
+  const replaceModeRef = useRef(false);
+  const didInitialPushRef = useRef(false);
+
   const getNewBooks = useCallback(() => {
     if (!user) return {};
     const library = useLibraryStore.getState().library;
@@ -107,8 +115,86 @@ export const useBooksSync = () => {
     pullLibrary();
   }, [user, useSyncInited, libraryLoaded, pullLibrary]);
 
+  // v8.3.0: 用户切换检测 — 检测 user.id 变化时清空 library + 触发全量 pull replace
+  // 场景：登出账号 A → 登录账号 B
+  //   - prevUserIdRef.current = A, user.id = B → 检测到切换
+  //   - 清空 library state + 磁盘 library.json
+  //   - 设 replaceModeRef = true，让下次 updateLibrary 走 replace（不 merge）
+  //   - 重置 didInitialPushRef，让登录后 push effect 重新触发
+  // 场景：未登录 → 登录（prevUserIdRef.current = null）
+  //   - 不清 library（保留未登录时导入的书，让它们 push 到当前账号）
+  // 场景：首次安装（prevUserIdRef.current = null）
+  //   - 不清 library（正常流程）
+  useEffect(() => {
+    const prevId = prevUserIdRef.current;
+    const currId = user?.id ?? null;
+    if (prevId === currId) return;
+    prevUserIdRef.current = currId;
+
+    if (prevId !== null && currId !== null && prevId !== currId) {
+      // 账号切换（A → B）：清 library + 设 replace 模式
+      useLibraryStore.getState().setLibrary([]);
+      try {
+        appService?.saveLibraryBooks([], { replace: true });
+      } catch (err) {
+        console.warn('Failed to clear library on user switch:', err);
+      }
+      replaceModeRef.current = true;
+      didInitialPushRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // v8.3.0: 登录后显式 push 未同步的书
+  // 解决"未登录时导入书 → 登录后自动同步"的时序问题
+  // pullLibrary 完成后 lastSyncedAtBooks > 0，pushLibrary 的守卫通过，push 未同步书
+  useEffect(() => {
+    if (!user || !useSyncInited || !libraryLoaded) return;
+    if (didInitialPushRef.current) return;
+    if (lastSyncedAtBooks === 0) return; // 等 pull 完成设了 cursor 再 push
+    didInitialPushRef.current = true;
+    pushLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, useSyncInited, libraryLoaded, lastSyncedAtBooks]);
+
   const updateLibrary = useCallback(async () => {
     if (!syncedBooks?.length) return;
+
+    // v8.3.0: replace 模式 — 用户切换账号时，直接用 syncedBooks 替换整个 library
+    // 不走 merge 逻辑，防止上个账号的书被保留
+    if (replaceModeRef.current) {
+      replaceModeRef.current = false;
+      syncedBooks.sort((a, b) => a.updatedAt - b.updatedAt);
+      const newLibrary = await Promise.all(
+        syncedBooks.map(async (book) => {
+          if (book.uploadedAt && !book.coverDownloadedAt) {
+            book.coverImageUrl = await appService?.generateCoverImageUrl(book);
+          }
+          book.syncedAt = Date.now();
+          return book;
+        }),
+      );
+      // 批量下载封面
+      const needsCover = newLibrary.filter(
+        (book) => !book.deletedAt && book.uploadedAt && !book.coverDownloadedAt,
+      );
+      if (needsCover.length > 0) {
+        setIsSyncing(true);
+        try {
+          const batchSize = 10;
+          for (let i = 0; i < needsCover.length; i += batchSize) {
+            const batch = needsCover.slice(i, i + batchSize);
+            await appService?.downloadBookCovers(batch);
+            setSyncProgress(Math.min((i + batchSize) / needsCover.length, 1));
+          }
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+      setLibrary(newLibrary);
+      appService?.saveLibraryBooks(newLibrary, { replace: true });
+      return;
+    }
 
     // Process old books first so that when we update the library the order is preserved
     syncedBooks.sort((a, b) => a.updatedAt - b.updatedAt);
