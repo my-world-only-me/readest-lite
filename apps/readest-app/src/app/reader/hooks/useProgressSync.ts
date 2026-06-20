@@ -27,7 +27,6 @@ export const useProgressSync = (bookKey: string) => {
   // to the WHOLE bookDataStore — saveConfig writes booksData on every
   // throttled save and would otherwise re-render the entire reader subtree.
   const getConfig = useBookDataStore((s) => s.getConfig);
-  const setConfig = useBookDataStore((s) => s.setConfig);
   const getBookData = useBookDataStore((s) => s.getBookData);
   const getView = useReaderStore((s) => s.getView);
   const setHoveredBookKey = useReaderStore((s) => s.setHoveredBookKey);
