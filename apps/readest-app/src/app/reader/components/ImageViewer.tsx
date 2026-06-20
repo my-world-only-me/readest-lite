@@ -1,8 +1,10 @@
 import clsx from 'clsx';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useKeyDownActions } from '@/hooks/useKeyDownActions';
+import { useEnv } from '@/context/EnvContext';
+import { eventDispatcher } from '@/utils/event';
 import { Insets } from '@/types/misc';
 import ZoomControls from './ZoomControls';
 
@@ -27,6 +29,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   gridInsets,
 }) => {
   const _ = useTranslation();
+  const { appService } = useEnv();
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -370,6 +373,25 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
   const cursorStyle = scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default';
 
+  // v8.6: save/share image — Web 端用 saveFile（下载），Tauri 端用 saveImageToGallery
+  const handleSaveImage = useCallback(async () => {
+    if (!src || !appService) return;
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const filename = `readest-image-${Date.now()}.png`;
+
+      // Web 端直接用 saveFile 下载
+      await appService.saveFile(filename, blob, { share: true });
+      eventDispatcher.dispatch('toast', { type: 'success', message: _('Image saved successfully'), timeout: 2000 });
+    } catch (err) {
+      console.error('Failed to save image:', err);
+      eventDispatcher.dispatch('toast', { type: 'error', message: _('Failed to save the image'), timeout: 3000 });
+    }
+  }, [src, appService, _]);
+
+  const canShare = false; // Web 端无 share sheet，显示下载图标
+
   if (!src) return null;
 
   return (
@@ -404,6 +426,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onReset={handleReset}
+        onSave={handleSaveImage}
+        canShare={canShare}
       />
 
       {onPrevious && showZoomLabel && (
