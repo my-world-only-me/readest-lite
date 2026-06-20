@@ -12,8 +12,8 @@ import {
   DEFAULT_READWISE_SETTINGS,
   DEFAULT_HARDCOVER_SETTINGS,
   DEFAULT_WEBDAV_SETTINGS,
-  DEFAULT_AI_SETTINGS,
 } from '@/services/constants';
+import { DEFAULT_AI_SETTINGS } from '@/services/ai/constants';
 
 export const useUserActions = () => {
   const router = useRouter();
