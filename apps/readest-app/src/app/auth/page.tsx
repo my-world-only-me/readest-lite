@@ -4,11 +4,20 @@ import { useRouter } from 'next/navigation';
 import { IoArrowBack } from 'react-icons/io5';
 
 import { useAuth } from '@/context/AuthContext';
+import { useVault } from '@/context/VaultContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/utils/supabase';
 import { User } from '@supabase/supabase-js';
+import { derivePbkdf2Key } from '@/libs/crypto/derive';
+import { decryptFromEnvelope } from '@/libs/crypto/envelope';
+import {
+  generateVaultKey,
+  importVaultKeyFromBase64,
+  getVaultSalt,
+} from '@/libs/crypto/vaultKey';
+import type { CipherEnvelope } from '@/types/replica';
 
 // Readest Lite — 登录页（仅邮箱密码，无社交登录、无注册）
 // Pro 体系与注册入口已完全移除。
@@ -16,6 +25,7 @@ export default function AuthPage() {
   const _ = useTranslation();
   const router = useRouter();
   const { login } = useAuth();
+  const { setVaultKey } = useVault();
   const { isDarkMode } = useThemeStore();
 
   const [email, setEmail] = useState('');
@@ -33,7 +43,36 @@ export default function AuthPage() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (data.session && data.user) {
-        login(data.session.access_token, data.user as User);
+        const user = data.user as User;
+        login(data.session.access_token, user);
+
+        // v8.4: Vault 密钥解密
+        // 登录返回的 session 含 encryptedVaultKey（K_enc）
+        // 用密码派生 KE → 解密 K_enc → K → setVaultKey
+        const encryptedVaultKey = (data.session as { encryptedVaultKey?: string | null }).encryptedVaultKey;
+        const userId = user.id;
+        const salt = getVaultSalt(userId);
+
+        if (encryptedVaultKey) {
+          // 已有 vault：解密 K_enc → K
+          try {
+            const KE = await derivePbkdf2Key(password, salt);
+            const envelope = JSON.parse(encryptedVaultKey) as CipherEnvelope;
+            const kBase64 = await decryptFromEnvelope(envelope, KE);
+            const K = await importVaultKeyFromBase64(kBase64);
+            setVaultKey(K);
+          } catch (vaultErr) {
+            console.error('Vault decryption failed:', vaultErr);
+            // 解密失败：生成新 K（旧数据无法恢复，但用户能继续使用）
+            const K = await generateVaultKey();
+            setVaultKey(K);
+          }
+        } else {
+          // 首次登录/改密码后：生成新 K，稍后登出时上传 K_enc
+          const K = await generateVaultKey();
+          setVaultKey(K);
+        }
+
         const redirectTo = new URLSearchParams(window.location.search).get('redirect');
         router.push(redirectTo ?? '/library');
       }
