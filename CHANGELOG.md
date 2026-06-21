@@ -3,6 +3,55 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.8.0] — 2026-06-21
+
+### Added — 分块上传规避 Cloudflare 524 超时
+- `apps/readest-app/src/utils/localStorage.ts`
+  - `createPartWriteStream(fileKey, index, total)` — 写第 N 块到
+    `<fileKey>.parts/<NNNNN>`（5 位补零，确保字典序 == 数字序）。
+    当 `index === 0` 时先清空 parts 目录，避免上次失败上传的残留 part
+    干扰本次 merge 校验。
+  - `mergePartsForKey(fileKey, expectedTotal)` — 校验 part 数量 + 名称
+    后，用 `Readable.from(async generator)` + `stream/promises.pipeline`
+    流式合并所有 parts 到 `<fileKey>`（不一次性 buffer 整个大文件到内存），
+    最后删除 `.parts` 目录。
+- `apps/readest-app/src/pages/api/storage/_put.ts` — 三个分支
+  - `merge=1&total=M` → 调 `mergePartsForKey` 触发流式合并
+  - `index=N&total=M` → 调 `createPartWriteStream` 写第 N 块
+  - 无额外参数 → 旧的整文件直传路径（小文件 + Tauri 客户端）
+
+### Changed — webUpload 自动分块
+- `apps/readest-app/src/utils/transfer.ts` 的 `webUpload`
+  - 文件 <= 5MB：单次 PUT（旧路径，零行为变化）
+  - 文件  > 5MB：切成 5MB 块，串行 PUT 每块到
+    `/api/storage/_put?...&index=N&total=M`，
+    最后再发一次 `PUT &merge=1&total=M` 触发服务端合并
+  - 进度回调跨块累计 `progress` / `total`，UI 显示连续进度条
+  - URL 解析用 `window.location.href` 作 base，兼容绝对 URL
+    （`PUBLIC_BASE_URL` 反代场景）和相对 URL（本地直连场景）
+
+### Fixed — Cloudflare 反代下大文件上传 524 超时
+- **问题**：用户走 Cloudflare 反代访问时，大文件（>50MB）整传超 100 秒
+  触发 CF 524 状态码，上传中断。浏览器控制台报：
+  `Failed to load resource: the server responded with a status of 524`
+  `File upload failed: Error: Upload failed with status 524`
+- **根因**：CF 默认 100 秒硬性 origin response timeout，源服务器在
+  接收上传期间不发响应，超时即断。
+- **修复**：5MB 块在慢带宽下也能在 ~30 秒内传完，远低于 100 秒限制。
+  服务端流式合并在 SSD 上 ~5-10 秒/GB，HDD ~30-60 秒/GB，也不超时。
+
+### Backward Compatibility
+- 小文件（<=5MB）走原直传路径，行为完全不变
+- Tauri 客户端用 `tauriUpload`（不是 `webUpload`），不受影响
+- 旧版客户端继续向新服务端整文件 PUT，依然可用（_put.ts 第 3 分支）
+- 新版客户端向旧服务端发 `&index=` 参数会被忽略走整传路径 — 但实际不会
+  发生，因为新客户端只 PUT 文件本体，分块参数只在 webUpload 内部加
+
+### CI Status
+- ✅ Docker Image workflow — `build-and-push` success
+- ✅ CI workflow — `Build Docker image` + `Smoke test` 全部通过
+- 镜像已推送：`ghcr.io/cshdotcom/readest-lite:8.8.0` / `8.8` / `latest`
+
 ## [v8.7.0] — 2026-06-21
 
 ### Added — 跨设备下载任务队列
