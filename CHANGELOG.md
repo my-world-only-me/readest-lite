@@ -3,6 +3,49 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.7.0] — 2026-06-21
+
+### Added — 跨设备下载任务队列
+- `prisma/schema.prisma` — 新增 `DownloadTask` 表（id, userId, url, filename,
+  status, error, bookHash, fileSize, createdAt, startedAt, completedAt）
+  支持跨设备同步的远程下载任务队列
+- `apps/readest-app/src/app/api/download-tasks/route.ts`
+  - `GET /api/download-tasks` — 列出当前用户所有任务
+  - `POST /api/download-tasks` — 创建任务（异步下载，后台 fetch → 写 File +
+    Book 表 → 更新任务状态）
+- `apps/readest-app/src/app/api/download-tasks/[id]/route.ts`
+  - `DELETE /api/download-tasks/[id]` — 删除单个任务
+  - `POST /api/download-tasks/[id]` — 重试 / 暂停 / 恢复（body: `{ action }`）
+- `apps/readest-app/src/app/api/download-tasks/batch/route.ts`
+  - `POST /api/download-tasks/batch` — 批量操作（retry_failed / pause_all /
+    resume_all / clear_completed / clear_failed / clear_all）
+- `apps/readest-app/src/app/user/components/DownloadTasks.tsx` — 用户中心
+  新增下载任务面板：5s 轮询、状态图标、批量按钮、单条重试/暂停/恢复/删除、
+  URL 一键复制
+- `apps/readest-app/src/app/user/page.tsx` — 所有用户（不止 admin）可见
+  DownloadTasks 面板
+
+### Changed
+- `RemoteDownloadDialog.tsx` 简化：POST 创建任务后 toast 提示去用户中心
+  查看进度，不再前端 transferStore 跟踪（任务状态已落库，跨设备可见）
+- `library/page.tsx` — `refresh-library` 事件改用 `useCallback` 稳定引用，
+  确保 `eventDispatcher.off()` 能正确解绑（修复 v8.7.0 CI 失败：
+  `Expected 2 arguments, but got 1`）
+
+### Fixed — v8.7.0 CI 稳定化（3 个 follow-up commit）
+- `78c0deb` 移除 `[id]/route.ts` 中未使用的 `ALLOWED_EXTENSIONS`
+  常量（触发 TS `noUnusedLocals`）
+- `78c0deb` 移除 `DownloadTasks.tsx` 中未使用的 `IoAlertCircleOutline`
+  import（同样触发 `noUnusedLocals`）
+- `e43a3a0` `eventDispatcher.off('refresh-library', handleRefreshLibrary)`
+  改为传 2 个参数（API 签名要求 event + callback）
+
+### CI Status
+- ✅ Docker Image workflow — `build-and-push` 成功，镜像已推送：
+  `ghcr.io/cshdotcom/readest-lite:8.7.0` / `8.7` / `sha-e43a3a0` / `latest`
+- ✅ CI workflow — `Build Docker image` + `Smoke test — container starts and
+  auth works` 均通过
+
 ## [0.1.0] — 2026-06-18
 
 ### Added — backend infrastructure
