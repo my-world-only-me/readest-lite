@@ -34,7 +34,7 @@ const parseContentDisposition = (cd: string): string | null => {
   if (!cd) return null;
   // 优先 filename*= (RFC 5987)
   const starMatch = cd.match(/filename\*\s*=\s*(?:UTF-8''|utf-8'')([^;]+)/i);
-  if (starMatch) {
+  if (starMatch && starMatch[1]) {
     try {
       return decodeURIComponent(starMatch[1].trim().replace(/['"]/g, ''));
     } catch {
@@ -43,7 +43,7 @@ const parseContentDisposition = (cd: string): string | null => {
   }
   // 普通 filename="..."
   const plainMatch = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
-  if (plainMatch) {
+  if (plainMatch && plainMatch[1]) {
     return plainMatch[1].trim();
   }
   return null;
@@ -52,7 +52,8 @@ const parseContentDisposition = (cd: string): string | null => {
 // 从 Content-Type 推断扩展名
 const extFromContentType = (ct: string | null | undefined): string => {
   if (!ct) return '';
-  const mime = ct.toLowerCase().split(';')[0].trim();
+  const parts = ct.toLowerCase().split(';');
+  const mime = (parts[0] || '').trim();
   const map: Record<string, string> = {
     'application/epub+zip': 'epub',
     'application/pdf': 'pdf',
