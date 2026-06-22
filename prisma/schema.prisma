@@ -48,23 +48,53 @@ model User {
 
 // ───────────────────────────────────────────────────────────────────────────
 // download_tasks (PK: id) — v8.7: 远程下载任务队列，跨设备同步
+// v8.9: 加 progress/speed/eta/cookies/headers 字段
 // ───────────────────────────────────────────────────────────────────────────
 model DownloadTask {
-  id          String   @id @default(uuid())
-  userId      String
-  url         String
-  filename    String
-  status      String   @default("pending") // pending|in_progress|paused|completed|failed
-  error       String?
-  bookHash    String?
-  fileSize    BigInt?
-  createdAt   DateTime @default(now())
-  startedAt   DateTime?
-  completedAt DateTime?
+  id              String   @id @default(uuid())
+  userId          String
+  url             String
+  filename        String
+  originalUrl     String?  // v8.9: 原始 URL（auto-rename 前的）
+  originalFilename String? // v8.9: 原始文件名（auto-rename 前的）
+  status          String   @default("pending") // pending|in_progress|paused|completed|failed
+  error           String?
+  bookHash        String?
+  fileSize        BigInt?
+  // v8.9: 进度/速度/ETA
+  progress        Int      @default(0)  // 0-100
+  downloadedBytes BigInt   @default(0)
+  totalBytes      BigInt?
+  speedBps        Int      @default(0)
+  etaSeconds      Int?
+  // v8.9: 自定义请求参数（高级选项）
+  cookies         String?
+  customHeaders   String?  // JSON 序列化的 key-value
+  createdAt       DateTime @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs  DownloadLog[]
 
   @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// download_logs (PK: id) — v8.9: 下载任务日志（info/warn/error）
+// 单独建表避免 task row 膨胀；按 taskId 索引，按 createdAt 排序
+// ───────────────────────────────────────────────────────────────────────────
+model DownloadLog {
+  id        String   @id @default(uuid())
+  taskId    String
+  level     String   @default("info") // info|warn|error
+  message   String
+  createdAt DateTime @default(now())
+
+  task DownloadTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
