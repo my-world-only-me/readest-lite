@@ -3,6 +3,108 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.9.0] — 2026-06-22
+
+### Added — 下载任务增强：进度/速度/ETA/日志/批量/自动重命名/Cookie
+
+#### 1. Prisma schema 扩展
+
+`DownloadTask` 表新增字段：
+- `progress` (Int 0-100) — 实时下载百分比
+- `downloadedBytes` (BigInt) — 已下载字节数
+- `totalBytes` (BigInt?) — 总字节数（从 Content-Length）
+- `speedBps` (Int) — 当前速度（字节/秒，5 秒滑动窗口）
+- `etaSeconds` (Int?) — 预计剩余秒数
+- `cookies` (String?) — 用户提供的 Cookie 头
+- `customHeaders` (String?) — JSON 序列化的自定义 headers
+- `originalUrl` / `originalFilename` — auto-rename 前的值（用于 UI 显示）
+
+新建 `DownloadLog` 表：
+- `id`, `taskId`, `level` (info|warn|error), `message`, `createdAt`
+- `@@index([taskId, createdAt])` — 按任务查日志的索引
+- `onDelete: Cascade` — 删 task 自动删日志
+
+#### 2. `filenameDetect.ts` — 智能文件名识别
+
+优先级：`Content-Disposition` > URL path > URL query `file=` > base64 decode > Content-Type > fallback
+
+支持场景：
+- 直接明文 URL: `https://example.com/book.epub` → `book.epub`
+- URL 编码中文: `%E4%B8%AD%E6%96%87.epub` → `中文.epub`
+- 带查询参数: `book.epub?file=abc` → `book.epub` (剥离 ?)
+- URL query `?file=book.epub` → `book.epub` (从 query 提取)
+- Base64 编码: `Zm9vYmFyLmVwdWI=` → `foobar.epub` (尝试解码)
+- 完全无扩展名: 用 Content-Type 推断 .epub/.pdf/.mobi 等
+- 乱码 fallback: `book-<timestamp>.epub`
+
+#### 3. `downloadRunner.ts` — 共享下载执行器
+
+被 `POST create` / `retry` / `batch retry_failed` / `batch resume_all` 共用：
+
+- 流式读取 `response.body.getReader()`，实时统计字节数
+- **每秒 throttle 写库**（progress / downloadedBytes / totalBytes / speedBps / etaSeconds）
+- 速度算法：最近 5 秒滑动窗口样本平均
+- ETA：`(totalBytes - downloadedBytes) / speedBps`
+- **每 2 秒独立检查暂停状态**（不被进度更新干扰，确保快速响应暂停）
+- 完整日志写入 `DownloadLog` 表（info / warn / error 三级）
+- 支持 `cookies` + `customHeaders` 注入到 fetch headers
+- 用 `filenameDetect` 在收到响应后智能识别文件名
+- 完成后写 `File` + `Book` 表，更新 task 状态为 `completed`
+
+#### 4. API 路由
+
+- `GET /api/download-tasks` — 返回 progress / speed / eta / hasCookies / hasCustomHeaders
+- `POST /api/download-tasks` — body 加 `cookies` / `headers` / `batch` 字段
+  - `batch: string[]` → 批量创建任务
+- `POST /api/download-tasks/[id]` — `retry` 调用 `runDownloadTask`
+- `POST /api/download-tasks/batch` — 新增 `action=create` 支持 batch URL 提交
+- `GET /api/download-tasks/[id]/logs` — **新端点**，返回任务完整日志
+  - 支持 `?level=info|warn|error` & `limit=N` & `offset=N`
+
+#### 5. `RemoteDownloadDialog` 重写 — 单任务 + 批量 + 高级选项
+
+- Tab 切换: Single | Batch
+- Single: URL + 可选 filename（提示自动检测）
+- Batch: textarea 一行一个 URL，最多 20 个，实时计数
+- **Advanced Options 折叠区**（单任务和批量都有）：
+  - Cookies textarea（格式：`key1=val1; key2=val2`）
+  - Custom Headers 列表（key-value 行，可增删）
+  - 说明文字提示类似 `curl -H`
+
+#### 6. `DownloadTasks.tsx` 重写 — 进度条 + 速度 + ETA + 用时
+
+每行任务显示：
+- 状态图标 + 文件名 + status badge
+- **progress bar** (in_progress / paused / completed)
+- `downloadedBytes / totalBytes` + 百分比
+- **速度** (B/s, KB/s, MB/s) + **ETA** (5s, 2m30s, 1h5m)
+- URL（点击复制）+ 创建时间 + **已用时**
+- auto-renamed / cookie / headers badge
+- 点击任务行 → 打开 `DownloadTaskDetailModal`
+- 3 秒轮询任务列表（有 pending/in_progress 时）
+- 1 秒 tick 重渲染刷新用时显示
+
+#### 7. `DownloadTaskDetailModal.tsx` — 任务详情 Modal
+
+- 显示完整日志（info / warn / error 三色）
+- 筛选: All / INFO / WARN / ERROR
+- Auto-scroll 开关（默认开启）
+- 任务元信息: status / 原文件名 → 新文件名 / Cookie / Headers
+- 2 秒轮询日志 + 任务状态
+- 用 `useRef` + `useEffect deps=[task?.status]` 避免无限重渲染
+
+### Fixed — v8.9.0 CI 稳定化
+
+- `94cc02c` `filenameDetect.ts` `noUncheckedIndexedAccess` 修复
+  - `starMatch[1]` → 加 `starMatch && starMatch[1]` 守卫
+  - `plainMatch[1]` → 加 `plainMatch && plainMatch[1]` 守卫
+  - `split(';')[0]` → 用中间变量 + `|| ''` 兜底
+
+### CI Status
+- ✅ Docker Image workflow — `build-and-push` success
+- ✅ CI workflow — `Build Docker image` + `Smoke test` 全部通过
+- 镜像已推送：`ghcr.io/cshdotcom/readest-lite:8.9.0` / `8.9` / `latest`
+
 ## [v8.8.0] — 2026-06-21
 
 ### Added — 分块上传规避 Cloudflare 524 超时
