@@ -3,6 +3,61 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.10.0] — 2026-06-23
+
+### Added — 中文汉化 + 阅读统计 + 下载折叠
+
+#### 1. 中文汉化（zh-CN + zh-TW）
+- 补全 v8.7-v8.9 所有新增字符串的中文翻译（60 个 key）
+- 包括：下载任务、进度条、日志、批量、高级选项、Cookie/Headers 等
+- 阅读统计相关新字符串一并加入
+
+#### 2. 阅读统计功能
+- **新建 `GET /api/stats/aggregate` 端点**
+  - 返回 `total` / `today` / `week` 聚合 + `books` 排行榜
+  - 数据源：`StatPage` 表（每条记录是一次 page-read 事件）
+  - 时间窗口：今日 0:00 / 本周周一 0:00 / 全部
+- **`ReadingStatsCard.tsx`（用户中心顶部）**
+  - 横向滚动卡片：总时间 / 今日 / 本周 / 日均
+  - 前 3 本书迷你榜
+  - 点击打开 `ReadingStatsModal`
+  - 30 秒轮询
+- **`ReadingStatsModal.tsx`**
+  - Tab: 今日 / 本周 / 总计
+  - 每个 Tab 显示总计 / 书籍数 / 日均
+  - 书籍排行榜：按阅读时间排序（高到低/低到高切换）
+  - 渐变进度条（根据阅读进度变色：红→黄→蓝→绿）
+  - 搜索框筛选书籍
+
+#### 3. 下载记录折叠
+- `DownloadTasks.tsx` 默认只显示前 3 条
+  超过 3 条时显示「查看全部 (N)」按钮
+- 新建 `DownloadTasksModal.tsx`：完整列表，可滚动
+  复用单条任务的渲染逻辑
+
+### Fixed — 笔记链接手机 + 登出安全
+
+#### 4. 笔记导出链接手机修复
+- `/o/page.tsx`：手机（Android/iOS）默认直接跳 web reader，不再尝试启动 App
+  - 原因：手机没装 App 时 `readest://` scheme 会触发「无法打开页面」错误
+  - 桌面仍然尝试启动 App（桌面浏览器优雅处理 unknown scheme）
+- `useOpenAnnotationLink.ts`：书不在库里时不要只弹 toast 就放弃
+  改为提示用户并导航到书库页，避免停留在空白 reader
+
+#### 5. 登出后残留书籍修复
+- `useUserActions.handleLogout`：
+  - 新增 `appService.saveLibraryBooks([])` 清空白名单明文 `library.json`
+    防止登出后 `loadLibraryBooks` 走明文路径读到旧书
+  - 新增 `useLibraryStore.setState({ libraryLoaded: false })`
+    让下次登录时重新从磁盘加载
+- `library/page.tsx`：`initLibrary` 加 `user/token` 守卫
+  未登录时跳过 `loadLibraryBooks`，避免 vault 清空后走明文路径
+
+### CI Status
+- ✅ Docker Image workflow — `build-and-push` success
+- ✅ CI workflow — `Build Docker image` + `Smoke test` 全部通过
+- 镜像已推送：`ghcr.io/cshdotcom/readest-lite:8.10.0` / `8.10` / `latest`
+
 ## [v8.9.0] — 2026-06-22
 
 ### Added — 下载任务增强：进度/速度/ETA/日志/批量/自动重命名/Cookie

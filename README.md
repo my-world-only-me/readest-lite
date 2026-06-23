@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/cshdotcom/readest-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/cshdotcom/readest-lite/actions/workflows/ci.yml)
 [![Docker](https://github.com/cshdotcom/readest-lite/actions/workflows/docker-image.yml/badge.svg)](https://github.com/cshdotcom/readest-lite/actions/workflows/docker-image.yml)
-[![Version](https://img.shields.io/badge/version-v8.9.0-6c5ce7)](https://github.com/cshdotcom/readest-lite/releases)
+[![Version](https://img.shields.io/badge/version-v8.10.0-6c5ce7)](https://github.com/cshdotcom/readest-lite/releases)
 
 🌐 **官网**：https://cshdotcom.github.io/readestl/
 📚 **部署教程**：https://cshdotcom.github.io/readestl/deploy.html
@@ -55,11 +55,11 @@ docker compose up -d
 | `DEEPL_PRO_API_KEYS` | 可选 | — | DeepL Pro API key，逗号分隔 |
 | `AI_GATEWAY_API_KEY` | 可选 | — | AI 聊天网关 key |
 
-指定特定版本：`ghcr.io/cshdotcom/readest-lite:8.9.0`（每个版本都有对应 git tag）。
+指定特定版本：`ghcr.io/cshdotcom/readest-lite:8.10.0`（每个版本都有对应 git tag）。
 
 完整说明见 [部署教程 - 环境变量](https://cshdotcom.github.io/readestl/deploy.html#env)。
 
-## v8.0 → v8.9 功能列表
+## v8.0 → v8.10 功能列表
 
 | 版本 | 核心改动 |
 |---|---|
@@ -73,7 +73,8 @@ docker compose up -d
 | v8.6 | 合并上游 0.11.12 · 图片保存/分享 · 永久分享 + 自定义有效期 · 下载任务队列 |
 | v8.7 | 跨设备下载任务队列（DownloadTask 表 · 暂停/恢复/重试 · 5s 轮询） |
 | v8.8 | 分块上传规避 Cloudflare 524 超时（大文件自动切 5MB · 流式合并） |
-| **v8.9** | **下载进度条/速度/ETA/用时 · 点击任务看完整日志 · 批量下载 · 自动重命名（base64/中文/Content-Disposition）· 高级选项（Cookie + Custom Headers）** |
+| v8.9 | 下载进度条/速度/ETA/用时 · 点击任务看完整日志 · 批量下载 · 自动重命名 · Cookie/Headers 高级选项 |
+| **v8.10** | **中文汉化 · 笔记链接手机默认走 web reader · 登出清空残留 library.json · 阅读统计（总/今日/本周 + 书榜） · 下载记录折叠** |
 
 ## 数据持久化
 
