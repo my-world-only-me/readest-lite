@@ -12,8 +12,10 @@ import {
   IoPlayCircle,
   IoPauseCircle,
   IoCloudDownloadOutline,
+  IoChevronForwardOutline,
 } from 'react-icons/io5';
 import DownloadTaskDetailModal from './DownloadTaskDetailModal';
+import DownloadTasksModal from './DownloadTasksModal';
 
 interface DownloadTask {
   id: string;
@@ -86,6 +88,7 @@ export default function DownloadTasks() {
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showAllModal, setShowAllModal] = useState(false);
   const nowRef = useRef(Date.now());
   const [, setTick] = useState(0); // 强制重渲染用
 
@@ -254,104 +257,118 @@ export default function DownloadTasks() {
           <p className='text-xs mt-2'>{_('Use "Download from URL" in the library to add tasks.')}</p>
         </div>
       ) : (
-        <div className='space-y-2 max-h-[500px] overflow-y-auto'>
-          {tasks.map((task) => {
-            const elapsed = getElapsedSeconds(task);
-            const isActive = task.status === 'pending' || task.status === 'in_progress';
-            const showProgress = task.status === 'in_progress' || task.status === 'paused';
-            const wasRenamed = task.originalFilename && task.originalFilename !== task.filename;
-            return (
-              <div
-                key={task.id}
-                onClick={() => setSelectedTaskId(task.id)}
-                className='flex items-start gap-2 p-2 rounded-lg bg-base-200/50 hover:bg-base-200 cursor-pointer transition'
-              >
-                <span className='text-lg mt-0.5'>{statusIcon(task.status)}</span>
-                <div className='flex-1 min-w-0'>
-                  <div className='flex items-center gap-2 flex-wrap'>
-                    <span className='font-medium text-sm truncate'>{task.filename}</span>
-                    <span className={`text-xs font-semibold ${statusColor(task.status)}`}>
-                      {_(task.status)}
-                    </span>
-                    {wasRenamed && (
-                      <span className='badge badge-xs badge-info' title={`${task.originalFilename} → ${task.filename}`}>
-                        ↻ renamed
-                      </span>
-                    )}
-                    {task.hasCookies && <span className='badge badge-xs badge-warning'>cookie</span>}
-                    {task.hasCustomHeaders && <span className='badge badge-xs badge-warning'>headers</span>}
-                  </div>
-
-                  {/* v8.9: 进度条 */}
-                  {(showProgress || task.status === 'completed') && (
-                    <div className='mt-1'>
-                      <progress
-                        className='progress progress-primary w-full h-1.5'
-                        value={task.progress}
-                        max='100'
-                      />
-                      <div className='flex items-center justify-between text-xs text-base-content/50 mt-0.5'>
-                        <span>
-                          {formatBytes(task.downloadedBytes)}
-                          {task.totalBytes ? ` / ${formatBytes(task.totalBytes)}` : ''}
-                          {task.progress > 0 && task.progress < 100 ? ` · ${task.progress}%` : ''}
-                        </span>
-                        {isActive && (
-                          <span>
-                            {task.speedBps > 0 ? formatSpeed(task.speedBps) : '—'}
-                            {task.etaSeconds !== null && task.etaSeconds > 0 ? ` · ETA ${formatDuration(task.etaSeconds)}` : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* v8.9: URL + 用时 */}
-                  <div
-                    className='text-xs text-base-content/50 truncate cursor-pointer hover:text-base-content/80'
-                    onClick={(e) => copyUrl(e, task.url)}
-                    title={task.url}
-                  >
-                    {task.url}
-                  </div>
-                  <div className='text-xs text-base-content/40'>
-                    {new Date(task.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                    {elapsed > 0 && ` · ⏱ ${formatDuration(elapsed)}`}
-                    {task.fileSize && task.status === 'completed' && ` · ${formatBytes(task.fileSize)}`}
-                    {task.error && (
-                      <span className='text-error'> · {task.error.slice(0, 80)}{task.error.length > 80 ? '...' : ''}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions — stop propagation to avoid opening modal */}
+        <>
+          <div className='space-y-2'>
+            {/* v8.10: 默认只显示前 3 条，避免长列表撑爆用户中心 */}
+            {tasks.slice(0, 3).map((task) => {
+              const elapsed = getElapsedSeconds(task);
+              const isActive = task.status === 'pending' || task.status === 'in_progress';
+              const showProgress = task.status === 'in_progress' || task.status === 'paused';
+              const wasRenamed = task.originalFilename && task.originalFilename !== task.filename;
+              return (
                 <div
-                  className='flex items-center gap-1 flex-shrink-0'
-                  onClick={(e) => e.stopPropagation()}
+                  key={task.id}
+                  onClick={() => setSelectedTaskId(task.id)}
+                  className='flex items-start gap-2 p-2 rounded-lg bg-base-200/50 hover:bg-base-200 cursor-pointer transition'
                 >
-                  {task.status === 'failed' && (
-                    <button onClick={() => void doAction(task.id, 'retry')} className='btn btn-ghost btn-xs btn-square' title={_('Retry')}>
-                      <IoRefresh className='w-3.5 h-3.5' />
+                  <span className='text-lg mt-0.5'>{statusIcon(task.status)}</span>
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-center gap-2 flex-wrap'>
+                      <span className='font-medium text-sm truncate'>{task.filename}</span>
+                      <span className={`text-xs font-semibold ${statusColor(task.status)}`}>
+                        {_(task.status)}
+                      </span>
+                      {wasRenamed && (
+                        <span className='badge badge-xs badge-info' title={`${task.originalFilename} → ${task.filename}`}>
+                          ↻ {_('renamed')}
+                        </span>
+                      )}
+                      {task.hasCookies && <span className='badge badge-xs badge-warning'>{_('cookie')}</span>}
+                      {task.hasCustomHeaders && <span className='badge badge-xs badge-warning'>{_('headers')}</span>}
+                    </div>
+
+                    {/* v8.9: 进度条 */}
+                    {(showProgress || task.status === 'completed') && (
+                      <div className='mt-1'>
+                        <progress
+                          className='progress progress-primary w-full h-1.5'
+                          value={task.progress}
+                          max='100'
+                        />
+                        <div className='flex items-center justify-between text-xs text-base-content/50 mt-0.5'>
+                          <span>
+                            {formatBytes(task.downloadedBytes)}
+                            {task.totalBytes ? ` / ${formatBytes(task.totalBytes)}` : ''}
+                            {task.progress > 0 && task.progress < 100 ? ` · ${task.progress}%` : ''}
+                          </span>
+                          {isActive && (
+                            <span>
+                              {task.speedBps > 0 ? formatSpeed(task.speedBps) : '—'}
+                              {task.etaSeconds !== null && task.etaSeconds > 0 ? ` · ETA ${formatDuration(task.etaSeconds)}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* v8.9: URL + 用时 */}
+                    <div
+                      className='text-xs text-base-content/50 truncate cursor-pointer hover:text-base-content/80'
+                      onClick={(e) => copyUrl(e, task.url)}
+                      title={task.url}
+                    >
+                      {task.url}
+                    </div>
+                    <div className='text-xs text-base-content/40'>
+                      {new Date(task.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                      {elapsed > 0 && ` · ⏱ ${formatDuration(elapsed)}`}
+                      {task.fileSize && task.status === 'completed' && ` · ${formatBytes(task.fileSize)}`}
+                      {task.error && (
+                        <span className='text-error'> · {task.error.slice(0, 80)}{task.error.length > 80 ? '...' : ''}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions — stop propagation to avoid opening modal */}
+                  <div
+                    className='flex items-center gap-1 flex-shrink-0'
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {task.status === 'failed' && (
+                      <button onClick={() => void doAction(task.id, 'retry')} className='btn btn-ghost btn-xs btn-square' title={_('Retry')}>
+                        <IoRefresh className='w-3.5 h-3.5' />
+                      </button>
+                    )}
+                    {isActive && (
+                      <button onClick={() => void doAction(task.id, 'pause')} className='btn btn-ghost btn-xs btn-square' title={_('Pause')}>
+                        <IoPauseCircle className='w-3.5 h-3.5' />
+                      </button>
+                    )}
+                    {task.status === 'paused' && (
+                      <button onClick={() => void doAction(task.id, 'resume')} className='btn btn-ghost btn-xs btn-square' title={_('Resume')}>
+                        <IoPlayCircle className='w-3.5 h-3.5' />
+                      </button>
+                    )}
+                    <button onClick={() => void deleteTask(task.id)} className='btn btn-ghost btn-xs btn-square text-error' title={_('Delete')}>
+                      <IoTrashOutline className='w-3.5 h-3.5' />
                     </button>
-                  )}
-                  {isActive && (
-                    <button onClick={() => void doAction(task.id, 'pause')} className='btn btn-ghost btn-xs btn-square' title={_('Pause')}>
-                      <IoPauseCircle className='w-3.5 h-3.5' />
-                    </button>
-                  )}
-                  {task.status === 'paused' && (
-                    <button onClick={() => void doAction(task.id, 'resume')} className='btn btn-ghost btn-xs btn-square' title={_('Resume')}>
-                      <IoPlayCircle className='w-3.5 h-3.5' />
-                    </button>
-                  )}
-                  <button onClick={() => void deleteTask(task.id)} className='btn btn-ghost btn-xs btn-square text-error' title={_('Delete')}>
-                    <IoTrashOutline className='w-3.5 h-3.5' />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* v8.10: 超过 3 条时显示「查看全部」按钮 */}
+          {tasks.length > 3 && (
+            <button
+              onClick={() => setShowAllModal(true)}
+              className='btn btn-ghost btn-sm w-full mt-2 text-base-content/60 hover:text-base-content'
+            >
+              {_('View All')} ({tasks.length})
+              <IoChevronForwardOutline className='w-3 h-3' />
+            </button>
+          )}
+        </>
       )}
 
       {/* v8.9: 详情 Modal */}
@@ -360,6 +377,22 @@ export default function DownloadTasks() {
           taskId={selectedTaskId}
           onClose={() => setSelectedTaskId(null)}
           onTaskChanged={() => void fetchTasks()}
+        />
+      )}
+
+      {/* v8.10: 全部任务 Modal */}
+      {showAllModal && (
+        <DownloadTasksModal
+          tasks={tasks}
+          onClose={() => setShowAllModal(false)}
+          onSelectTask={(id) => {
+            setShowAllModal(false);
+            setSelectedTaskId(id);
+          }}
+          onAction={doAction}
+          onDelete={deleteTask}
+          onCopyUrl={copyUrl}
+          getElapsedSeconds={getElapsedSeconds}
         />
       )}
     </div>

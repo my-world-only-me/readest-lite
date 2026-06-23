@@ -7,6 +7,7 @@ import { navigateToLibrary, navigateToResetPassword, navigateToUpdatePassword } 
 import { useLibraryStore } from '@/store/libraryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTransferStore } from '@/store/transferStore';
+import { useEnv } from '@/context/EnvContext';
 import {
   DEFAULT_KOSYNC_SETTINGS,
   DEFAULT_READWISE_SETTINGS,
@@ -20,6 +21,7 @@ export const useUserActions = () => {
   const router = useRouter();
   const { logout } = useAuth();
   const { clearVault } = useVault();
+  const { appService } = useEnv();
 
   // v8.4: 登出时彻底清理当前账号数据
   // - 数据已经加密保存在磁盘上（library-<userId>.enc / settings-<userId>.enc）
@@ -28,11 +30,14 @@ export const useUserActions = () => {
   // - 加密数据保留在磁盘，重新登录同账号时用密码解密 K_enc → K → 解密数据恢复
   // - 不需要密码（K_enc 已在服务端，不需要重新加密 K）
   // - 不删 Books/ 目录下的 <hash>/ 文件夹（文件本体保留）
+  // v8.10: 同时清空白名单明文 library.json — 防止登出后 loadLibraryBooks 走明文路径读到旧书
   const handleLogout = async () => {
     try {
       // 1. 清空 library 内存 state
       //    磁盘上的加密文件 library-<userId>.enc 保留（重新登录可解密恢复）
       useLibraryStore.getState().setLibrary([]);
+      // 同时清 libraryLoaded 标志，让下次登录时重新从磁盘加载
+      useLibraryStore.setState({ libraryLoaded: false });
 
       // 2. 清账号绑定的 settings state + 重置 sync cursor
       const { settings, setSettings } = useSettingsStore.getState();
@@ -67,10 +72,23 @@ export const useUserActions = () => {
       //    这一步必须在 saveSettings 之后，防止 saveSettings 用已清除的 K 加密失败
       clearVault();
       setVaultState(null, null);
+
+      // 5. v8.10: 清空白名单明文 library.json — 防止登出后 loadLibraryBooks 走明文路径读到旧书
+      //    场景：登录账号 A → 导入书 → 登出（vault 清了）→ library page 重 mount →
+      //         loadLibraryBooks 走 else 分支（明文）→ 读到 library.json 还存着 A 的书
+      //    解法：登出时把 library.json 清空（写 [] 而非删除，避免文件不存在的 fallback 逻辑）
+      if (appService) {
+        try {
+          await appService.saveLibraryBooks([]);
+          console.log('[logout] Cleared plaintext library.json');
+        } catch (err) {
+          console.warn('[logout] Failed to clear plaintext library.json:', err);
+        }
+      }
     } catch (err) {
       console.error('Error during logout cleanup:', err);
     } finally {
-      // 5. 最后走原 logout（清 token/user）
+      // 6. 最后走原 logout（清 token/user）
       await logout();
       navigateToLibrary(router);
     }

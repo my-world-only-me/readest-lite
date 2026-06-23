@@ -566,6 +566,17 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       const settings = await appService.loadSettings();
       setSettings(settings);
 
+      // v8.10: 未登录时不要走 loadLibraryBooks — 避免 vault 清空后走明文路径读到旧书
+      // 登出后 user/token 都为 null，此时 library 应该是空的
+      // 重新登录后 user 变非空，会触发 pullLibrary 走 since=0 全量拉取新账号的书
+      if (!token || !user) {
+        console.log('[library] User not logged in, skipping loadLibraryBooks');
+        setLibraryLoaded(true);
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        setLoading(false);
+        return;
+      }
+
       // Re-grant fs_scope / asset_protocol_scope for every external
       // library folder the user registered in a previous session, so
       // in-place books under those roots are immediately readable

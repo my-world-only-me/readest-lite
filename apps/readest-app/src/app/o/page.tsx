@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { IoAlertCircleOutline, IoBookOutline, IoOpenOutline } from 'react-icons/io5';
-import { DOWNLOAD_READEST_URL, READEST_WEB_BASE_URL } from '@/services/constants';
+import { DOWNLOAD_READEST_URL } from '@/services/constants';
 import { useTranslation } from '@/hooks/useTranslation';
 import { buildAnnotationAppUrl } from '@/utils/deeplink';
 import { BrandHeader } from '@/components/landing/BrandHeader';
@@ -25,14 +25,7 @@ const detectPlatform = (): Platform => {
   return 'desktop';
 };
 
-const ANDROID_PACKAGE = 'com.bilingify.readest';
-const FALLBACK_TIMEOUT_MS = 1500;
 const DESKTOP_FALLBACK_DELAY_MS = 1000;
-
-const buildIntentUrl = (path: string, fallbackUrl: string) => {
-  const cleanPath = path.replace(/^\//, '');
-  return `intent://${cleanPath}#Intent;scheme=readest;package=${ANDROID_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
-};
 
 const buildWebReaderUrl = (bookHash: string, cfi: string | null): string => {
   const query = cfi ? `?${new URLSearchParams({ cfi }).toString()}` : '';
@@ -66,36 +59,14 @@ const OpenAnnotationLanding = () => {
     const platform = detectPlatform();
     const appUrl = buildAnnotationAppUrl({ bookHash, noteId, cfi: cfi ?? undefined });
     const webReaderUrl = buildWebReaderUrl(bookHash, cfi);
-    const path = `book/${bookHash}/annotation/${noteId}${cfi ? `?cfi=${encodeURIComponent(cfi)}` : ''}`;
 
-    if (platform === 'android-chromium') {
-      const absoluteFallback = `${READEST_WEB_BASE_URL}${webReaderUrl}`;
-      window.location.replace(buildIntentUrl(path, absoluteFallback));
-      return;
-    }
-
-    if (platform === 'android-other') {
-      let cancelled = false;
-      const onVisibility = () => {
-        if (document.visibilityState === 'hidden') cancelled = true;
-      };
-      document.addEventListener('visibilitychange', onVisibility);
-      window.location.replace(appUrl);
-      const timer = window.setTimeout(() => {
-        document.removeEventListener('visibilitychange', onVisibility);
-        if (!cancelled) router.replace(webReaderUrl);
-      }, FALLBACK_TIMEOUT_MS);
-      return () => {
-        document.removeEventListener('visibilitychange', onVisibility);
-        window.clearTimeout(timer);
-      };
-    }
-
-    if (platform === 'ios') {
-      // Apple blocks JS-driven scheme launches without a user gesture; show
-      // the manual UI instead. Universal Links should have intercepted before
-      // this page loaded if the app is installed.
-      setShowManualOpen(true);
+    // v8.10: 手机上默认直接走 web reader，不尝试启动 App
+    // 原因：手机上没装 App 时，readest:// scheme 会触发 "无法打开页面" 错误
+    // 即使设了 fallback_url 也会先弹错误提示，体验差
+    // 改为：手机默认 web reader，桌面仍然尝试启动 App（桌面浏览器会优雅处理 unknown scheme）
+    if (platform === 'android-chromium' || platform === 'android-other' || platform === 'ios') {
+      // 手机：直接跳 web reader，并提供"打开 App"按钮作为备选
+      router.replace(webReaderUrl);
       return;
     }
 
