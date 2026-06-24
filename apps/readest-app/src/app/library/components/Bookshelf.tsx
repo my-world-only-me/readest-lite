@@ -256,12 +256,15 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   }, [filteredBooks, groupBy, groupId, getGroupName]);
 
   useEffect(() => {
-    if (groupId && currentBookshelfItems.length === 0) {
+    // v8.10.3: 只在 group 真的不存在时才导航走，而不是 group 暂时为空时
+    // 旧逻辑: groupId && currentBookshelfItems.length === 0 → 立即导航走
+    //   问题: 用户把组里最后一本书移出 → 组暂时为空 → 立即被踢出 → 无法继续操作
+    // 新逻辑: 只在 getGroupName(groupId) 返回空（group 真的被删了）时才导航走
+    //   group 暂时为空时显示空状态，让用户继续操作（加书/删组/返回）
+    if (groupId && !getGroupName(groupId)) {
       updateUrlParams({ group: null });
-    } else {
-      updateUrlParams({});
     }
-  }, [searchParams, groupId, currentBookshelfItems.length, updateUrlParams]);
+  }, [groupId, getGroupName, updateUrlParams]);
 
   const sortedBookshelfItems = useMemo(() => {
     const sortOrderMultiplier = sortOrder === 'asc' ? 1 : -1;
@@ -787,6 +790,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
             itemContent={renderBookshelfItem}
             scrollerRef={handleScrollerRef}
           />
+        )}
+        {/* v8.10.3: group 暂时为空时显示提示，而不是立即踢出 */}
+        {!hasItems && groupId && getGroupName(groupId) && (
+          <div className='flex flex-col items-center justify-center h-full text-base-content/40 py-16'>
+            <p className='text-lg font-medium mb-2'>{_('This group is empty')}</p>
+            <p className='text-sm'>{_('Move books here or go back to add some.')}</p>
+          </div>
         )}
       </div>
       {loading && (

@@ -680,6 +680,10 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }, [libraryBooks, searchParams, settings.libraryGroupBy]);
 
   useEffect(() => {
+    // v8.10.3: 登出后不要重新添加 demo books
+    // 登出时 handleLogout 清了 library + libraryLoaded 被 initLibrary 重新设为 true，
+    // 但 demoBooks state 还在 → 这个 effect 会把 demo books 加回来 → 登出后还看到书
+    if (!token || !user) return;
     if (demoBooks.length > 0 && libraryLoaded) {
       const newLibrary = [...libraryBooks];
       for (const book of demoBooks) {

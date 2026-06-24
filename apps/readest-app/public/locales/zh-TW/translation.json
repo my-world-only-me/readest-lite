@@ -1798,5 +1798,7 @@
   "Lines starting with # are comments": "# 開頭的行是註解",
   "Per-URL syntax:": "每行 URL 語法：",
   "URLs without directives use the global Cookies/Headers from Advanced Options below.": "沒有指令的 URL 使用下方進階選項裡的全局 Cookies/Headers。",
-  "users": "個使用者"
+  "users": "個使用者",
+  "This group is empty": "此分組為空",
+  "Move books here or go back to add some.": "將書籍移動到此處或返回添加。"
 }
