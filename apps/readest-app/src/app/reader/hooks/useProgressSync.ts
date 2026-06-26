@@ -27,6 +27,7 @@ export const useProgressSync = (bookKey: string) => {
   // to the WHOLE bookDataStore — saveConfig writes booksData on every
   // throttled save and would otherwise re-render the entire reader subtree.
   const getConfig = useBookDataStore((s) => s.getConfig);
+  const setConfig = useBookDataStore((s) => s.setConfig);
   const getBookData = useBookDataStore((s) => s.getBookData);
   const getView = useReaderStore((s) => s.getView);
   const setHoveredBookKey = useReaderStore((s) => s.setHoveredBookKey);
@@ -235,6 +236,24 @@ export const useProgressSync = (bookKey: string) => {
         );
         if (!remoteCFILocation || CFI.compare(remoteCFILocation, candidateCFI) < 0) {
           remoteCFILocation = candidateCFI;
+        }
+      }
+      // v8.10.4: 恢复 config 跨设备同步（可选）
+      // v8.6.0 上游 PR #4672 把 view settings 改成设备本地，导致用户在 A 设备改的
+      // 字体/主题/排版等设置不会同步到 B 设备。现在通过 settings.syncViewSettings
+      // 开关控制：默认关（保持 v8.6 行为），用户在 用户中心 → Manage Sync 开启后
+      // 恢复完整 config 同步。
+      const syncViewSettings = settings?.syncViewSettings === true;
+      if (syncViewSettings) {
+        const filteredSyncedConfig = Object.fromEntries(
+          Object.entries(syncedConfig).filter(
+            ([, value]) => value !== null && value !== undefined,
+          ),
+        );
+        if (syncedConfig.updatedAt >= config.updatedAt) {
+          setConfig(bookKey, { ...config, ...filteredSyncedConfig });
+        } else {
+          setConfig(bookKey, { ...filteredSyncedConfig, ...config });
         }
       }
       // v8.6: view settings are now device-local — only sync reading progress (CFI),

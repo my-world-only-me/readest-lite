@@ -139,6 +139,34 @@ export function SyncCategoriesSection() {
           );
         })}
       </ul>
+
+      {/* v8.10.4: View Settings 跨设备同步开关（独立于 syncCategories） */}
+      <div className='flex items-center justify-between gap-4 px-4 py-3 border-base-300 border rounded-lg mt-4'>
+        <div className='flex flex-col gap-0.5'>
+          <span className='text-base-content text-sm font-medium'>
+            {_('View Settings')}
+          </span>
+          <span className='text-base-content/60 text-xs'>
+            {_('Sync font, theme, and layout preferences across devices. Off by default to keep view settings device-local (upstream PR #4672). Enable to restore cross-device config sync.')}
+          </span>
+        </div>
+        <input
+          type='checkbox'
+          role='switch'
+          aria-label={_('View Settings')}
+          aria-checked={settings.syncViewSettings === true}
+          checked={settings.syncViewSettings === true}
+          onChange={(e) => {
+            const updated: SystemSettings = {
+              ...settings,
+              syncViewSettings: e.target.checked,
+            };
+            setSettings(updated);
+            void saveSettings(envConfig, updated);
+          }}
+          className='toggle'
+        />
+      </div>
     </div>
   );
 }

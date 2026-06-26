@@ -380,6 +380,16 @@ export interface SystemSettings {
    */
   syncCategories?: Partial<Record<SyncCategory, boolean>>;
 
+  /**
+   * v8.10.4: 是否跨设备同步书籍的 view settings（字体/主题/排版等）。
+   *
+   * 默认 false：保持 v8.6.0 上游 PR #4672 的设备本地行为。
+   * 设为 true 后，useProgressSync 会合并远端 config 到本地（恢复 v8.6 之前的行为）。
+   *
+   * 用户在 用户中心 → Manage Sync → "View Settings" toggle 控制。
+   */
+  syncViewSettings?: boolean;
+
   // Global read settings that apply to the reader page
   globalReadSettings: ReadSettings;
   // Global view settings that apply to all books, and can be overridden by book-specific view settings

@@ -1800,5 +1800,7 @@
   "URLs without directives use the global Cookies/Headers from Advanced Options below.": "没有指令的 URL 使用下方高级选项里的全局 Cookies/Headers。",
   "users": "个用户",
   "This group is empty": "此分组为空",
-  "Move books here or go back to add some.": "将书籍移动到此处或返回添加。"
+  "Move books here or go back to add some.": "将书籍移动到此处或返回添加。",
+  "View Settings": "视图设置",
+  "Sync font, theme, and layout preferences across devices. Off by default to keep view settings device-local (upstream PR #4672). Enable to restore cross-device config sync.": "跨设备同步字体、主题、排版偏好。默认关闭以保持视图设置设备本地（上游 PR #4672）。开启后恢复跨设备 config 同步。"
 }
