@@ -340,3 +340,25 @@ export function decideAnnotationDraw(
   if (style === 'underline' || style === 'squiggly') return style;
   return 'none';
 }
+
+// v8.11: 从上游 ff96c6d3 引入
+// Merge a freshly-built restyle onto an existing annotation, preserving
+// id, createdAt, note, text, and global flag.
+export function mergeRestyledAnnotation(existing: BookNote, restyled: BookNote): BookNote {
+  return {
+    ...restyled,
+    id: existing.id,
+    createdAt: existing.createdAt,
+    note: existing.note,
+    text: existing.text ?? restyled.text,
+    global: existing.global || restyled.global,
+  };
+}
+
+// v8.11: 从上游 ff96c6d3 引入
+// Index of the live annotation record at cfi, or -1.
+export function findAnnotationAtCfi(booknotes: BookNote[], cfi: string): number {
+  return booknotes.findIndex(
+    (note) => note.type === 'annotation' && note.cfi === cfi && !note.deletedAt,
+  );
+}
