@@ -7,7 +7,6 @@ import { useBookDataStore } from '@/store/bookDataStore';
 import { getOSPlatform } from '@/utils/misc';
 import { eventDispatcher } from '@/utils/event';
 import {
-  focusCaretWindowPos,
   getWordRangeFromPoint,
   isHyphenHandleBugProneRange,
   isPointerInsideSelection,
