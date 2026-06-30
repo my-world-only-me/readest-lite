@@ -668,3 +668,30 @@ export const getTextFromRange = (range: Range, rejectTags: string[] = []): strin
 
   return text;
 };
+
+// v8.11: 从 useTextSelector.ts 提取到 sel.ts，供 useAutoPageTurn.ts 复用
+// Window-coordinate position of the selection focus (caret), or null.
+export const focusCaretWindowPos = (doc: Document, sel: Selection): { x: number; y: number } | null => {
+  const focusNode = sel.focusNode;
+  const win = doc.defaultView;
+  if (!focusNode || !win) return null;
+  let rect: DOMRect;
+  try {
+    const range = doc.createRange();
+    const offset =
+      focusNode.nodeType === Node.TEXT_NODE
+        ? Math.min(sel.focusOffset, (focusNode.textContent ?? '').length)
+        : sel.focusOffset;
+    range.setStart(focusNode, offset);
+    range.collapse(true);
+    rect = range.getBoundingClientRect();
+  } catch {
+    return null;
+  }
+  if (rect.top === 0 && rect.bottom === 0 && rect.left === 0 && rect.right === 0) return null;
+  const feRect = win.frameElement?.getBoundingClientRect();
+  return {
+    x: (rect.left + rect.right) / 2 + (feRect?.left ?? 0),
+    y: (rect.top + rect.bottom) / 2 + (feRect?.top ?? 0),
+  };
+};
