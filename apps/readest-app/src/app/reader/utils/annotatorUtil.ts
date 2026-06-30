@@ -229,3 +229,31 @@ export function buildTTSSentenceHighlight(
     ...params,
   };
 }
+
+// v8.11: 从上游 ff96c6d3 引入
+// Index of the live annotation record at cfi, or -1.
+export function findAnnotationAtCfi(booknotes: BookNote[], cfi: string): number {
+  return booknotes.findIndex(
+    (note) => note.type === 'annotation' && note.cfi === cfi && !note.deletedAt,
+  );
+}
+
+// v8.11: 从上游 #4791 引入
+// Remove an empty annotation placeholder (no note text) by soft-deleting it.
+export function removeEmptyAnnotationPlaceholder(
+  booknotes: BookNote[],
+  placeholderId: string,
+  now: number,
+): BookNote | null {
+  const index = booknotes.findIndex(
+    (note) =>
+      note.id === placeholderId &&
+      note.type === 'annotation' &&
+      !note.deletedAt &&
+      !note.note?.trim(),
+  );
+  if (index === -1) return null;
+  const placeholder = booknotes[index]!;
+  booknotes[index] = { ...placeholder, deletedAt: now };
+  return placeholder;
+}
