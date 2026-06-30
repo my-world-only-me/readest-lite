@@ -326,3 +326,17 @@ export function buildTTSSentenceHighlight(
     ...params,
   };
 }
+
+// v8.11: 从上游 ff96c6d3 (unify highlights and annotations) 引入
+// 决定一条 annotation 在 overlay 上画什么：bubble / highlight / underline / squiggly / none
+export type AnnotationDrawKind = 'bubble' | 'highlight' | 'underline' | 'squiggly' | 'none';
+
+export function decideAnnotationDraw(
+  value: string | undefined,
+  style: HighlightStyle | undefined,
+): AnnotationDrawKind {
+  if (value?.startsWith(NOTE_PREFIX)) return 'bubble';
+  if (style === 'highlight') return 'highlight';
+  if (style === 'underline' || style === 'squiggly') return style;
+  return 'none';
+}
