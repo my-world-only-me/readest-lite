@@ -441,6 +441,7 @@ export interface SearchExcerpt {
   pre: string;
   match: string;
   post: string;
+  segments?: { pre: string; match: string; post: string }[];
 }
 
 export interface BookSearchMatch {
