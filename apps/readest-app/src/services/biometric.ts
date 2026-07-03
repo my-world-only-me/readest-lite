@@ -48,6 +48,7 @@ export const getBiometryLabelKey = (biometryType: BiometryType): string => {
 };
 
 export const shouldAttemptBiometricUnlock = (opts: {
+  isMobileApp?: boolean;
   biometricUnlockEnabled: boolean | undefined;
   available: boolean;
 }): boolean => {
