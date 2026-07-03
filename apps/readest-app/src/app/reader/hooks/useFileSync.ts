@@ -62,8 +62,8 @@ const PULL_COOLDOWN_MS = 60_000;
 const OPEN_PULL_SKIP_MS = 30_000;
 
 /** Settings key for a backend kind. */
-const settingsKeyFor = (kind: FileSyncBackendKind): 'webdav' | 'googleDrive' =>
-  kind === 'gdrive' ? 'googleDrive' : 'webdav';
+const settingsKeyFor = (kind: FileSyncBackendKind): 'webdav' =>
+  'webdav';
 
 export const useFileSync = (bookKey: string) => {
   const _ = useTranslation();
@@ -81,10 +81,10 @@ export const useFileSync = (bookKey: string) => {
   // The single active cloud provider (WebDAV and Google Drive are exclusive).
   const activeKind: FileSyncBackendKind | null = settings.webdav?.enabled
     ? 'webdav'
-    : settings.googleDrive?.enabled
-      ? 'gdrive'
+    : settings.webdav?.enabled
+      ? 'webdav'
       : null;
-  const providerSettings = activeKind === 'gdrive' ? settings.googleDrive : settings.webdav;
+  const providerSettings = activeKind === 'webdav' ? settings.webdav : settings.webdav;
 
   /** Flips true on the first local change after a push, false right before each push. */
   const dirtyRef = useRef(false);
@@ -149,9 +149,9 @@ export const useFileSync = (bookKey: string) => {
       const w = settings.webdav;
       return !!(w?.enabled && w?.serverUrl && w?.username);
     }
-    if (activeKind === 'gdrive') return !!settings.googleDrive?.enabled;
+    if (activeKind === 'webdav') return !!settings.webdav?.enabled;
     return false;
-  }, [isPremium, activeKind, settings.webdav, settings.googleDrive]);
+  }, [isPremium, activeKind, settings.webdav, settings.webdav]);
 
   const strategy = providerSettings?.strategy ?? 'silent';
   const allowPush = isReady && strategy !== 'receive';
@@ -166,9 +166,9 @@ export const useFileSync = (bookKey: string) => {
       const w = settings.webdav;
       return `webdav:${w?.enabled}:${w?.serverUrl}:${w?.username}:${w?.password}:${w?.rootPath}`;
     }
-    if (activeKind === 'gdrive') return `gdrive:${settings.googleDrive?.enabled}`;
+    if (activeKind === 'webdav') return 'webdav';
     return 'none';
-  }, [activeKind, settings.webdav, settings.googleDrive]);
+  }, [activeKind, settings.webdav, settings.webdav]);
 
   const [engine, setEngine] = useState<FileSyncEngine | null>(null);
   useEffect(() => {
@@ -203,7 +203,7 @@ export const useFileSync = (bookKey: string) => {
       bookKey,
       timeout: 5000,
       message:
-        activeKind === 'gdrive'
+        activeKind === 'webdav'
           ? _('Google Drive session expired. Reconnect in Settings.')
           : _('Cloud sync session expired. Reconnect in Settings.'),
     });
