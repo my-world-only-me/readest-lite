@@ -58,7 +58,7 @@ export const shouldAttemptBiometricUnlock = (opts: {
 export const defaultBiometricUnlockOnPinSet = (opts: {
   isMobileApp?: boolean;
   available: boolean;
-  hadBiometricUnlock: boolean;
+  hadBiometricUnlock?: boolean;
 }): boolean => {
   return opts.available && !opts.hadBiometricUnlock;
 };
