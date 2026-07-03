@@ -3,6 +3,39 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.12.1] — 2026-07-03
+
+### Fixed — 紧急修复 v8.12.0 上游同步误覆盖 Lite 自定义代码
+
+v8.12.0 commit message 声称 `utils/storage.ts`、`utils/book.ts`、`AboutWindow.tsx` 是 Lite 自定义文件会保留，但实际 diff 显示这三个文件都被上游版本覆盖，导致两个用户可见的 bug。
+
+#### 1. 「关于」按钮弹出官方页面（AboutWindow.tsx 被覆盖）
+- **问题**：AboutWindow.tsx 被替换为上游版本，标题从「About Readest Lite」变成「About Readest」，主标题从「Readest Lite」（带渐变高亮）变成「Readest」（纯文本），版权从「© cshdotcom. Based on Readest.」变成「© Bilingify LLC. All rights reserved.」，源码链接从 `github.com/cshdotcom/readest-lite` 变成 `github.com/readest/readest`，网站链接被删除。
+- **修复**：恢复 Lite 品牌定制（标题、主标题、版权、链接），同时**保留** v8.12.0 新增的「Check Update」按钮和 `updateStatus` 状态。
+
+#### 2. 下载书籍时报「File not found」（storage.ts + book.ts 被覆盖）
+- **问题根因链**：
+  1. `utils/storage.ts` 被覆盖：`ObjectStorageType` 类型从 `'r2'|'s3'|'local'` 缩为 `'r2'|'s3'`，默认从 `'local'` 改为 `'r2'`
+  2. `utils/book.ts::getRemoteBookFilename` 被覆盖：上游版本在 storageType 既不是 'r2' 也不是 's3' 时返回 `''`（空字符串）
+  3. `runtimeConfig.ts` 仍然把 `objectStorageType` 默认为 `'local'`
+  4. 运行时 `getStorageType()` 返回 `'local'` → `getRemoteBookFilename()` 返回 `''`
+  5. cfp 变成 `Readest/Books/`（缺文件名段）
+  6. fileKey 变成 `<uid>/Readest/Books/`
+  7. 下载 API 查 File 表无匹配 → fallback 的 `parts.length === 5` 检查失败（实际 length=4）
+  8. 返回 404 "File not found"
+- **现象**：文件确实在磁盘上，File 表记录也正确，但客户端构造的 fileKey 缺文件名段，永远匹配不到任何记录。
+- **修复**：恢复 `utils/storage.ts` 的 `'local'` 类型和默认值；恢复 `utils/book.ts::getRemoteBookFilename` 的 Lite 分支（`'s3'` → hash-only 文件名，其他包括 `'local'` 和 `'r2'` → 可读文件名）。
+
+### CI 教训
+这正是 ITERATION_PROMPT 警告的那种回归：合并上游时，Lite 自定义文件**绝对不能**被覆盖。v8.12.0 commit message 声称保留了，但实际 diff 显示没保留。未来的上游同步**必须**对每个"保留"的文件做 pre-sync/post-sync diff 对比，验证 Lite 特定代码没有丢失。
+
+### CI Status
+- ✅ Docker Image workflow — build-and-push success
+- ✅ CI workflow — Smoke test success
+- 镜像已推送：`ghcr.io/cshdotcom/readest-lite:8.12.1` / `8.12` / `latest`
+
+---
+
 ## [v8.12.0] — 2026-07-02
 
 ### Added — 上游 v0.11.17 全量同步（逐文件对比）
