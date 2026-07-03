@@ -487,6 +487,8 @@ export interface BookDataRecord {
   updated_at: number | null;
   deleted_at: number | null;
   synced_at: number | null;
+  uploaded_at?: number | string | null;
+  downloaded_at?: number | string | null;
 }
 
 export interface BooksGroup {
