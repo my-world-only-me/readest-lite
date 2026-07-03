@@ -1,10 +1,19 @@
+// 改造自原 src/pages/api/sync/replicas.ts。
+// 100% 对齐原接口：路径 /api/sync/replicas，方法 GET/POST。
+// body={cursors:[...]} → 批量拉；body={rows:[...]} → 推送（CRDT 合并）。
+// 错误码、状态码、响应字段与原版一致。
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseClient } from '@/utils/supabase';
+import { prismaClient } from '@/utils/db';
 import { validateUserAndToken } from '@/utils/access';
 import { runMiddleware, corsAllMethods } from '@/utils/cors';
-import { validatePullBatch, validatePullParams, validatePushBatch } from '@/libs/replicaSyncServer';
+import {
+  validatePullBatch,
+  validatePullParams,
+  validatePushBatch,
+} from '@/libs/replicaSyncServer';
 import type { ReplicaRow } from '@/types/replica';
+import { crdtMergeReplica } from '@/utils/crdt';
 
 const errorResponse = (status: number, code: string, message: string, offendingIndex?: number) =>
   NextResponse.json(
@@ -16,95 +25,110 @@ const errorResponse = (status: number, code: string, message: string, offendingI
     { status },
   );
 
+const rowToResponse = (r: {
+  userId: string; kind: string; replicaId: string;
+  fieldsJsonb: string; manifestJsonb: string | null;
+  deletedAtTs: string | null; reincarnation: string | null;
+  updatedAtTs: string; schemaVersion: number;
+  createdAt: Date; modifiedAt: Date;
+}): ReplicaRow => ({
+  user_id: r.userId,
+  kind: r.kind,
+  replica_id: r.replicaId,
+  fields_jsonb: JSON.parse(r.fieldsJsonb || '{}'),
+  manifest_jsonb: r.manifestJsonb ? JSON.parse(r.manifestJsonb) : null,
+  deleted_at_ts: (r.deletedAtTs as unknown as ReplicaRow['deleted_at_ts']) ?? null,
+  reincarnation: r.reincarnation,
+  updated_at_ts: r.updatedAtTs as unknown as ReplicaRow['updated_at_ts'],
+  schema_version: r.schemaVersion,
+});
+
 export async function POST(req: NextRequest) {
   const { user, token } = await validateUserAndToken(req.headers.get('authorization'));
-  if (!user || !token) {
-    return errorResponse(401, 'AUTH', 'Not authenticated');
-  }
-  const supabase = createSupabaseClient(token);
+  if (!user || !token) return errorResponse(401, 'AUTH', 'Not authenticated');
 
   let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return errorResponse(400, 'VALIDATION', 'Invalid JSON body');
-  }
+  try { body = await req.json(); } catch { return errorResponse(400, 'VALIDATION', 'Invalid JSON body'); }
 
-  // Body discriminator: `{ cursors: [...] }` is a batched pull (replaces
-  // N parallel `GET ?kind=K&since=…` calls with a single Worker
-  // invocation); `{ rows: [...] }` is the existing push.
+  // 批量拉
   if (typeof body === 'object' && body !== null && 'cursors' in body) {
     const validation = validatePullBatch(body);
-    if (!validation.ok) {
-      return errorResponse(
-        validation.status,
-        validation.code,
-        validation.message,
-        validation.offendingIndex,
-      );
-    }
+    if (!validation.ok) return errorResponse(validation.status, validation.code, validation.message, validation.offendingIndex);
     const { cursors } = validation.params;
-    if (cursors.length === 0) {
-      return NextResponse.json({ results: [] }, { status: 200 });
-    }
-    // Per-kind queries run in parallel: each is the same SELECT the
-    // single-kind GET issues, just dispatched together. Supabase calls
-    // inside a Worker aren't billed as Cloudflare requests, so this
-    // collapses N Worker invocations to 1 without changing DB load.
+    if (cursors.length === 0) return NextResponse.json({ results: [] }, { status: 200 });
     try {
       const tasks = cursors.map(async ({ kind, since }) => {
-        let query = supabase
-          .from('replicas')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('kind', kind)
-          .order('updated_at_ts', { ascending: true })
-          .limit(1000);
-        if (since) query = query.gt('updated_at_ts', since);
-        const { data, error } = await query;
-        if (error) throw new Error(`pull replicas (kind=${kind}) failed: ${error.message}`);
-        return { kind, rows: (data ?? []) as ReplicaRow[] };
+        const rows = await prismaClient.replica.findMany({
+          where: { userId: user.id, kind, ...(since ? { updatedAtTs: { gt: since } } : {}) },
+          orderBy: { updatedAtTs: 'asc' as const },
+          take: 1000,
+        });
+        return { kind, rows: rows.map(rowToResponse) };
       });
       const results = await Promise.all(tasks);
       return NextResponse.json({ results }, { status: 200 });
     } catch (error) {
-      console.error('batch pull replicas failed', { cursors, error });
       const message = error instanceof Error ? error.message : 'unknown error';
       return errorResponse(500, 'SERVER', message);
     }
   }
 
+  // 推送
   const validation = validatePushBatch(body, user.id, Date.now());
-  if (!validation.ok) {
-    return errorResponse(
-      validation.status,
-      validation.code,
-      validation.message,
-      validation.offendingIndex,
-    );
-  }
+  if (!validation.ok) return errorResponse(validation.status, validation.code, validation.message, validation.offendingIndex);
 
   const merged: ReplicaRow[] = [];
   for (const row of validation.rows) {
-    const { data, error } = await supabase
-      .rpc('crdt_merge_replica', {
-        p_user_id: row.user_id,
-        p_kind: row.kind,
-        p_replica_id: row.replica_id,
-        p_fields_jsonb: row.fields_jsonb,
-        p_manifest_jsonb: row.manifest_jsonb,
-        p_deleted_at_ts: row.deleted_at_ts,
-        p_reincarnation: row.reincarnation,
-        p_updated_at_ts: row.updated_at_ts,
-        p_schema_version: row.schema_version,
-      })
-      .single<ReplicaRow>();
+    const existing = await prismaClient.replica.findUnique({
+      where: {
+        userId_kind_replicaId: { userId: row.user_id, kind: row.kind, replicaId: row.replica_id },
+      },
+    });
+    const localRow = existing
+      ? ({
+          user_id: existing.userId,
+          kind: existing.kind,
+          replica_id: existing.replicaId,
+          fields_jsonb: JSON.parse(existing.fieldsJsonb || '{}'),
+          manifest_jsonb: existing.manifestJsonb ? JSON.parse(existing.manifestJsonb) : null,
+          deleted_at_ts: (existing.deletedAtTs as unknown as ReplicaRow['deleted_at_ts']) ?? null,
+          reincarnation: existing.reincarnation,
+          updated_at_ts: existing.updatedAtTs as unknown as ReplicaRow['updated_at_ts'],
+          schema_version: existing.schemaVersion,
+        } as ReplicaRow)
+      : null;
+    const mergedRow = crdtMergeReplica(localRow, {
+      userId: row.user_id, kind: row.kind, replicaId: row.replica_id,
+      fieldsJsonb: row.fields_jsonb, manifestJsonb: row.manifest_jsonb,
+      deletedAtTs: row.deleted_at_ts, reincarnation: row.reincarnation,
+      updatedAtTs: row.updated_at_ts, schemaVersion: row.schema_version,
+    });
 
-    if (error) {
-      console.error('crdt_merge_replica failed', { row, error });
-      return errorResponse(500, 'SERVER', error.message);
+    if (existing) {
+      await prismaClient.replica.update({
+        where: { userId_kind_replicaId: { userId: row.user_id, kind: row.kind, replicaId: row.replica_id } },
+        data: {
+          fieldsJsonb: JSON.stringify(mergedRow.fields_jsonb),
+          manifestJsonb: mergedRow.manifest_jsonb ? JSON.stringify(mergedRow.manifest_jsonb) : null,
+          deletedAtTs: mergedRow.deleted_at_ts,
+          reincarnation: mergedRow.reincarnation,
+          updatedAtTs: mergedRow.updated_at_ts,
+          schemaVersion: mergedRow.schema_version,
+          modifiedAt: new Date(),
+        },
+      });
+    } else {
+      await prismaClient.replica.create({
+        data: {
+          userId: mergedRow.user_id, kind: mergedRow.kind, replicaId: mergedRow.replica_id,
+          fieldsJsonb: JSON.stringify(mergedRow.fields_jsonb),
+          manifestJsonb: mergedRow.manifest_jsonb ? JSON.stringify(mergedRow.manifest_jsonb) : null,
+          deletedAtTs: mergedRow.deleted_at_ts, reincarnation: mergedRow.reincarnation,
+          updatedAtTs: mergedRow.updated_at_ts, schemaVersion: mergedRow.schema_version,
+        },
+      });
     }
-    if (data) merged.push(data);
+    merged.push(mergedRow);
   }
 
   return NextResponse.json({ rows: merged }, { status: 200 });
@@ -112,79 +136,43 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const { user, token } = await validateUserAndToken(req.headers.get('authorization'));
-  if (!user || !token) {
-    return errorResponse(401, 'AUTH', 'Not authenticated');
-  }
-  const supabase = createSupabaseClient(token);
+  if (!user || !token) return errorResponse(401, 'AUTH', 'Not authenticated');
 
   const { searchParams } = new URL(req.url);
   const validation = validatePullParams(searchParams.get('kind'), searchParams.get('since'));
-  if (!validation.ok) {
-    return errorResponse(validation.status, validation.code, validation.message);
-  }
+  if (!validation.ok) return errorResponse(validation.status, validation.code, validation.message);
   const { kind, since } = validation.params;
 
-  let query = supabase
-    .from('replicas')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('kind', kind)
-    .order('updated_at_ts', { ascending: true })
-    .limit(1000);
-
-  if (since) query = query.gt('updated_at_ts', since);
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('pull replicas failed', { kind, since, error });
-    return errorResponse(500, 'SERVER', error.message);
-  }
-
-  return NextResponse.json({ rows: data ?? [] }, { status: 200 });
+  const rows = await prismaClient.replica.findMany({
+    where: { userId: user.id, kind, ...(since ? { updatedAtTs: { gt: since } } : {}) },
+    orderBy: { updatedAtTs: 'asc' as const },
+    take: 1000,
+  });
+  return NextResponse.json({ rows: rows.map(rowToResponse) }, { status: 200 });
 }
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  if (!req.url) {
-    return res.status(400).json({ error: 'Invalid request URL' });
-  }
+  if (!req.url) return res.status(400).json({ error: 'Invalid request URL' });
   const protocol = process.env['PROTOCOL'] || 'http';
   const host = process.env['HOST'] || 'localhost:3000';
   const url = new URL(req.url, `${protocol}://${host}`);
-
   await runMiddleware(req, res, corsAllMethods);
-
   try {
     let response: Response;
     if (req.method === 'GET') {
-      const nextReq = new NextRequest(url.toString(), {
-        headers: new Headers(req.headers as Record<string, string>),
-        method: 'GET',
-      });
-      response = await GET(nextReq);
+      response = await GET(new NextRequest(url.toString(), { headers: new Headers(req.headers as Record<string, string>), method: 'GET' }));
     } else if (req.method === 'POST') {
-      const nextReq = new NextRequest(url.toString(), {
-        headers: new Headers(req.headers as Record<string, string>),
-        method: 'POST',
-        body: JSON.stringify(req.body),
-      });
-      response = await POST(nextReq);
+      response = await POST(new NextRequest(url.toString(), { headers: new Headers(req.headers as Record<string, string>), method: 'POST', body: JSON.stringify(req.body) }));
     } else {
       res.setHeader('Allow', ['GET', 'POST']);
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
-
     res.status(response.status);
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
-    });
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    res.send(buffer);
-  } catch (error) {
-    console.error('Error processing /api/sync/replicas request:', error);
+    response.headers.forEach((v, k) => res.setHeader(k, v));
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (e) {
+    console.error('Error /api/sync/replicas:', e);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-
 export default handler;
