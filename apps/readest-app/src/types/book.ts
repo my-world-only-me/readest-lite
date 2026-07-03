@@ -382,6 +382,7 @@ export interface ProofreadRule {
   caseSensitive?: boolean; // Case-sensitive matching (default true)
   onlyForTTS?: boolean; // Only replace text for TTS, not in the book display (only for book/library scope)
   deletedAt?: number | null;
+  updatedAt?: number;
 }
 
 export interface ProofreadRulesConfig {
