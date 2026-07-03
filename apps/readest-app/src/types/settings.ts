@@ -314,6 +314,7 @@ export interface SystemSettings {
    * false = 客户端直连目标 URL（需要客户端本地网络能访问 Google/Wikipedia 等）
    */
   proxyEnabled: boolean;
+  biometricUnlockEnabled?: boolean;
   libraryViewMode: LibraryViewModeType;
   librarySortBy: LibrarySortByType;
   librarySortAscending: boolean;
