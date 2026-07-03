@@ -416,6 +416,7 @@ export interface BookProgress {
   index: number;
   range: Range;
   page: number;
+  fraction: number;
 }
 
 export type SearchMode = 'contains' | 'whole-words' | 'regex' | 'nearby-words';
