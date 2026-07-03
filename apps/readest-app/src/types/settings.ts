@@ -110,6 +110,8 @@ export interface WebDAVSettings {
   username: string;
   password: string;
   rootPath: string;
+  browseSortBy?: WebDAVBrowseSortByType;
+  browseSortAscending?: boolean;
   // Sync sub-toggles. WebDAV sync runs as a parallel channel alongside the
   // native cloud sync, KOSync, Readwise, and Hardcover; each sub-toggle
   // gates a category independently so a user can e.g. mirror progress to
