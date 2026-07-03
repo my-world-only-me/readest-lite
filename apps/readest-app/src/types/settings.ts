@@ -411,3 +411,4 @@ export interface SystemSettings {
   // Global view settings that apply to all books, and can be overridden by book-specific view settings
   globalViewSettings: ViewSettings;
 }
+export type WebDAVBrowseSortByType = 'name' | 'modified' | 'created' | 'size';
