@@ -441,7 +441,7 @@ export interface SearchExcerpt {
   pre: string;
   match: string;
   post: string;
-  segments?: { pre: string; match: string; post: string; emphasized?: boolean }[];
+  segments?: { pre: string; match: string; post: string; emphasized?: boolean; text?: string }[];
 }
 
 export interface BookSearchMatch {
