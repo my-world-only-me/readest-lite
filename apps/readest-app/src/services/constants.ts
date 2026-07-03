@@ -117,7 +117,7 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   swipeBrightnessGesture: true,
   hardwarePageTurner: {
     enabled: false,
-    bindings: { pagePrev: null, pageNext: null, sectionPrev: null, sectionNext: null },
+    bindings: { pagePrev: null, pageNext: null, sectionPrev: null, sectionNext: null, refresh: null },
   },
   openLastBooks: false,
   lastOpenBooks: [],
