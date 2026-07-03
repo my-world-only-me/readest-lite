@@ -46,3 +46,17 @@ export const getBiometryLabelKey = (biometryType: BiometryType): string => {
       return 'settings.appLock.biometric.none';
   }
 };
+
+export const shouldAttemptBiometricUnlock = (opts: {
+  biometricUnlockEnabled: boolean | undefined;
+  available: boolean;
+}): boolean => {
+  return opts.biometricUnlockEnabled === true && opts.available;
+};
+
+export const defaultBiometricUnlockOnPinSet = (opts: {
+  available: boolean;
+  hadBiometricUnlock: boolean;
+}): boolean => {
+  return opts.available && !opts.hadBiometricUnlock;
+};

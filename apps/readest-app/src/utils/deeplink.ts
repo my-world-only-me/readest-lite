@@ -120,3 +120,21 @@ export const parseAnnotationDeepLink = (url: string): AnnotationDeepLink | null 
 
   return null;
 };
+
+// v8.12: parseBookDeepLink for useOpenBookLink hook
+export const parseBookDeepLink = (url: string): { bookHash: string } | null => {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    // readest://book/{hash} or https://.../o/book/{hash}
+    if (segments.length >= 2 && segments[0] === 'book') {
+      return { bookHash: segments[1]! };
+    }
+    if (segments.length >= 3 && segments[0] === 'o' && segments[1] === 'book') {
+      return { bookHash: segments[2]! };
+    }
+  } catch {
+    // not a URL
+  }
+  return null;
+};
