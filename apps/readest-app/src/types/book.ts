@@ -108,6 +108,8 @@ export interface Book {
   uploadedAt?: number | null;
   downloadedAt?: number | null;
   coverDownloadedAt?: number | null;
+  coverHash?: string;
+  coverUpdatedAt?: number;
   syncedAt?: number | null;
 
   lastUpdated?: number; // deprecated in favor of updatedAt
