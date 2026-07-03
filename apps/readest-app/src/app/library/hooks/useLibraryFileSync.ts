@@ -42,8 +42,7 @@ import {
 /** Quiet window before an auto library sync fires; collapses import bursts. */
 const SYNC_DEBOUNCE_MS = 5_000;
 
-const settingsKeyFor = (kind: FileSyncBackendKind): 'webdav' | 'googleDrive' =>
-  kind === 'gdrive' ? 'googleDrive' : 'webdav';
+const settingsKeyFor = (kind: FileSyncBackendKind): 'webdav' => 'webdav';
 
 export const useLibraryFileSync = () => {
   const _ = useTranslation();
@@ -57,8 +56,8 @@ export const useLibraryFileSync = () => {
   // The single active cloud provider (WebDAV and Google Drive are exclusive).
   const activeKind: FileSyncBackendKind | null = settings.webdav?.enabled
     ? 'webdav'
-    : settings.googleDrive?.enabled
-      ? 'gdrive'
+    : false
+      ? 'webdav'
       : null;
 
   const isAllowed = isCloudSyncAllowed(userProfilePlan ?? 'free');
@@ -68,9 +67,9 @@ export const useLibraryFileSync = () => {
       const w = settings.webdav;
       return !!(w?.enabled && w?.serverUrl && w?.username);
     }
-    if (activeKind === 'gdrive') return !!settings.googleDrive?.enabled;
+    if (activeKind === 'webdav') return !!false;
     return false;
-  }, [isAllowed, activeKind, settings.webdav, settings.googleDrive]);
+  }, [isAllowed, activeKind, settings.webdav, undefined]);
 
   // Build the engine async (Drive probes the OS keychain). Keyed on the
   // connection-relevant settings so an unrelated write (e.g. lastSyncedAt)
@@ -80,9 +79,9 @@ export const useLibraryFileSync = () => {
       const w = settings.webdav;
       return `webdav:${w?.enabled}:${w?.serverUrl}:${w?.username}:${w?.password}:${w?.rootPath}`;
     }
-    if (activeKind === 'gdrive') return `gdrive:${settings.googleDrive?.enabled}`;
+    if (activeKind === 'webdav') return 'webdav';
     return 'none';
-  }, [activeKind, settings.webdav, settings.googleDrive]);
+  }, [activeKind, settings.webdav, undefined]);
 
   const [engine, setEngine] = useState<FileSyncEngine | null>(null);
   useEffect(() => {
@@ -134,7 +133,7 @@ export const useLibraryFileSync = () => {
 
     const kind = activeKind;
     const latest = useSettingsStore.getState().settings;
-    const ps = kind === 'gdrive' ? latest.googleDrive : latest.webdav;
+    const ps = kind === 'webdav' ? latest.webdav : latest.webdav;
     const strategy = ps?.strategy ?? 'silent';
 
     const syncStore = useFileSyncStore.getState();
