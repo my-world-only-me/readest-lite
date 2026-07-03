@@ -108,7 +108,7 @@ export interface Book {
   uploadedAt?: number | null;
   downloadedAt?: number | null;
   coverDownloadedAt?: number | null;
-  coverHash?: string;
+  coverHash?: string | null;
   coverUpdatedAt?: number;
   syncedAt?: number | null;
 
