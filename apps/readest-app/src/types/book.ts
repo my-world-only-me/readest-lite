@@ -428,6 +428,7 @@ export interface BookSearchConfig {
   matchCase: boolean;
   matchWholeWords: boolean;
   matchDiacritics: boolean;
+  nearbyWords?: number;
   index?: number;
   query?: string;
   acceptNode?: (node: Node) => number;
