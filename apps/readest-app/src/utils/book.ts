@@ -23,13 +23,15 @@ export const getLibraryBackupFilename = () => {
   return 'library_backup.json';
 };
 export const getRemoteBookFilename = (book: Book) => {
-  // S3 storage: https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/object-keys.html
-  if (getStorageType() === 'r2') {
-    return `${book.hash}/${makeSafeFilename(book.sourceTitle || book.title)}.${EXTS[book.format]}`;
-  } else if (getStorageType() === 's3') {
+  // Readest Lite — 'local' 与 'r2' 走相同的可读文件名规则
+  // v8.12.0 上游同步时不慎覆盖为上游版本（'local' 分支返回 ''），导致 fileKey 缺文件名
+  // 段、下载报 "File not found"。此处恢复 Lite 自定义：'local' 与 'r2' 等价。
+  const t = getStorageType();
+  if (t === 's3') {
     return `${book.hash}/${book.hash}.${EXTS[book.format]}`;
   } else {
-    return '';
+    // 'r2' 和 'local' 都使用可读文件名
+    return `${book.hash}/${makeSafeFilename(book.sourceTitle || book.title)}.${EXTS[book.format]}`;
   }
 };
 export const getLocalBookFilename = (book: Book) => {

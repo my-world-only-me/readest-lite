@@ -21,6 +21,16 @@ export const setAboutDialogVisible = (visible: boolean) => {
   }
 };
 
+// v8.2.0: "Lite" 炫酷高亮样式 — 渐变 + 阴影发光
+// v8.12.0 上游同步时不慎被覆盖，v8.12.1 恢复 Lite 定制
+const LiteHighlight = () => (
+  <span
+    className='bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-wide drop-shadow-[0_0_8px_rgba(45,212,191,0.4)]'
+  >
+    Lite
+  </span>
+);
+
 type UpdateStatus = 'checking' | 'updating' | 'updated' | 'error';
 
 export const AboutWindow = () => {
@@ -84,7 +94,7 @@ export const AboutWindow = () => {
     <Dialog
       id='about_window'
       isOpen={isOpen}
-      title={_('About Readest')}
+      title={_('About Readest Lite')}
       onClose={handleClose}
       boxClassName='sm:!w-[480px] sm:!max-w-screen-sm sm:h-auto'
     >
@@ -95,7 +105,9 @@ export const AboutWindow = () => {
               <Image src='/icon.png' alt='App Logo' className='h-20 w-20' width={64} height={64} />
             </div>
             <div className='flex select-text flex-col items-center'>
-              <h2 className='mb-2 text-2xl font-bold'>Readest</h2>
+              <h2 className='mb-2 text-2xl font-bold'>
+                Readest <LiteHighlight />
+              </h2>
               <p className='text-neutral-content text-center text-sm'>
                 {_('Version {{version}}', { version: getAppVersion() })} {`(${browserInfo})`}
               </p>
@@ -130,7 +142,7 @@ export const AboutWindow = () => {
             dir='ltr'
           >
             <p className='text-neutral-content text-sm'>
-              © {new Date().getFullYear()} Bilingify LLC. All rights reserved.
+              © {new Date().getFullYear()} cshdotcom. Based on Readest.
             </p>
 
             <p className='text-neutral-content text-xs'>
@@ -146,8 +158,12 @@ export const AboutWindow = () => {
             </p>
             <p className='text-neutral-content text-xs'>
               Source code is available at{' '}
-              <Link href='https://github.com/readest/readest' className='text-blue-500 underline'>
+              <Link href='https://github.com/cshdotcom/readest-lite' className='text-blue-500 underline'>
                 GitHub
+              </Link>
+              {' · '}
+              <Link href='https://cshdotcom.github.io/readestl/' className='text-blue-500 underline'>
+                Website
               </Link>
               .
             </p>
