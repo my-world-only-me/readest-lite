@@ -486,6 +486,7 @@ export interface BookDataRecord {
   user_id: string;
   updated_at: number | null;
   deleted_at: number | null;
+  synced_at: number | null;
 }
 
 export interface BooksGroup {
