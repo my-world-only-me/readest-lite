@@ -201,6 +201,7 @@ export interface BookLayout {
   scrollingOverlap: number;
   allowScript: boolean;
   hideScrollbar: boolean;
+  webtoonMode: boolean;
 }
 
 export interface BookStyle {
@@ -298,6 +299,7 @@ export interface ViewConfig {
   readingRulerPosition: number;
   readingRulerOpacity: number;
   readingRulerColor: ReadingRulerColor;
+  showStickyProgressBar: boolean;
 }
 
 export interface TTSConfig {
@@ -354,6 +356,8 @@ export interface WordLensConfig {
   wordLensLevel: number;
   /** Hint (target) language; '' = auto (app UI language). */
   wordLensHintLang: string;
+  wordLensGlossFontSize: number;
+  wordLensGlossColor: string;
 }
 
 export interface ScreenConfig {
@@ -412,8 +416,11 @@ export interface BookProgress {
   page: number;
 }
 
+export type SearchMode = 'contains' | 'whole-words' | 'regex' | 'nearby-words';
+
 export interface BookSearchConfig {
   scope: 'book' | 'section';
+  mode: SearchMode;
   matchCase: boolean;
   matchWholeWords: boolean;
   matchDiacritics: boolean;

@@ -260,6 +260,7 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   scrollingOverlap: 0,
   allowScript: false,
   hideScrollbar: false,
+  webtoonMode: false,
 };
 
 export const DEFAULT_BOOK_LANGUAGE: BookLanguage = {
@@ -362,6 +363,7 @@ export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   readingRulerPosition: 33,
   readingRulerOpacity: 0.5,
   readingRulerColor: 'transparent',
+  showStickyProgressBar: false,
 };
 
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
@@ -416,6 +418,8 @@ export const DEFAULT_WORD_LENS_CONFIG: WordLensConfig = {
   wordLensEnabled: false,
   wordLensLevel: 3,
   wordLensHintLang: '',
+  wordLensGlossFontSize: 14,
+  wordLensGlossColor: '#ffffff',
 };
 
 export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
@@ -424,6 +428,7 @@ export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
 
 export const DEFAULT_BOOK_SEARCH_CONFIG: BookSearchConfig = {
   scope: 'book',
+  mode: 'contains',
   matchCase: false,
   matchWholeWords: false,
   matchDiacritics: false,

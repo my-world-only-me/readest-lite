@@ -1,6 +1,8 @@
 import { getAPIBaseUrl } from '@/services/environment';
 import { stubTranslation as _ } from '@/utils/misc';
 import { ErrorCodes, TranslationProvider } from '../types';
+import { UserPlan } from '@/types/quota';
+import { getSubscriptionPlan, getTranslationQuota } from '@/utils/access';
 import { normalizeToShortLang } from '@/utils/lang';
 import { saveDailyUsage } from '../utils';
 
@@ -24,8 +26,9 @@ export const deeplProvider: TranslationProvider = {
       'Content-Type': 'application/json',
     };
 
-    // Readest Lite — Pro 体系删除，仅保留 token 鉴权
+    let userPlan: UserPlan = 'free';
     if (token) {
+      userPlan = getSubscriptionPlan(token);
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -41,13 +44,14 @@ export const deeplProvider: TranslationProvider = {
       use_cache: useCache,
     });
 
+    const quota = getTranslationQuota(userPlan);
     try {
       const response = await fetch(DEEPL_API_ENDPOINT, { method: 'POST', headers, body });
 
       if (!response.ok) {
         const data = await response.json();
         if (data && data.error && data.error === ErrorCodes.DAILY_QUOTA_EXCEEDED) {
-          saveDailyUsage(Number.MAX_SAFE_INTEGER);
+          saveDailyUsage(quota);
           deeplProvider.quotaExceeded = true;
           throw new Error(ErrorCodes.DAILY_QUOTA_EXCEEDED);
         }
@@ -66,8 +70,7 @@ export const deeplProvider: TranslationProvider = {
         const translation = data.translations?.[i];
         if (translation?.daily_usage) {
           saveDailyUsage(translation.daily_usage);
-          // Pro 体系删除 — quota 已移除，quotaExceeded 永远 false
-          deeplProvider.quotaExceeded = false;
+          deeplProvider.quotaExceeded = data.daily_usage >= quota;
         }
         return translation?.text || line;
       });
