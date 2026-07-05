@@ -8,7 +8,6 @@ import {
 } from '@/types/book';
 import { SUPPORTED_LANGS } from '@/services/constants';
 import { getLocale, getUserLang, makeSafeFilename } from './misc';
-import { getStorageType } from './storage';
 import { getDirFromLanguage } from './rtl';
 import { code6392to6391, isValidLang, normalizedLangCode } from './lang';
 import { md5 } from './md5';
@@ -26,16 +25,19 @@ export const getRemoteBookFilename = (book: Book) => {
   // Readest Lite — 'local' 与 'r2' 走相同的可读文件名规则
   // v8.12.0 上游同步时不慎覆盖为上游版本（'local' 分支返回 ''），导致 fileKey 缺文件名
   // 段、下载报 "File not found"。此处恢复 Lite 自定义：'local' 与 'r2' 等价。
-  const t = getStorageType();
-  if (t === 's3') {
-    return `${book.hash}/${book.hash}.${EXTS[book.format]}`;
-  } else {
-    // 'r2' 和 'local' 都使用可读文件名
-    return `${book.hash}/${makeSafeFilename(book.sourceTitle || book.title)}.${EXTS[book.format]}`;
-  }
+  // v8.12.2 防御性兜底：即使未来 storageType 异常，也用 hash 兜底文件名，
+  // 避免返回空串导致 cfp='Readest/Books/' → isSafeObjectKeyName=false → "Invalid fileName"。
+  const ext = EXTS[book.format] || 'epub';
+  const safeTitle = makeSafeFilename(book.sourceTitle || book.title || book.hash);
+  const filename = safeTitle || book.hash;
+  return `${book.hash}/${filename}.${ext}`;
 };
 export const getLocalBookFilename = (book: Book) => {
-  return `${book.hash}/${makeSafeFilename(book.sourceTitle || book.title)}.${EXTS[book.format]}`;
+  // v8.12.2: 防御性兜底，避免空标题/未知格式导致文件名异常
+  const ext = EXTS[book.format] || 'epub';
+  const safeTitle = makeSafeFilename(book.sourceTitle || book.title || book.hash);
+  const filename = safeTitle || book.hash;
+  return `${book.hash}/${filename}.${ext}`;
 };
 export const getCoverFilename = (book: Book) => {
   return `${book.hash}/cover.png`;
