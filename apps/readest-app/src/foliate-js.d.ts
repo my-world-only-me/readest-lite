@@ -43,7 +43,7 @@ declare module 'foliate-js/tts.js' {
     prevMark(paused?: boolean): string | undefined;
     nextMark(paused?: boolean): string | undefined;
     from(range: Range): string | undefined;
-    getLastRange(): Range | undefined;
+    getLastRange(): Range;
     setMark(mark: string): Range | undefined;
     setMarkEnabled(name: string, enabled: boolean): void;
   }
