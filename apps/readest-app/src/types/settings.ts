@@ -18,6 +18,7 @@ export const LibrarySortByType = {
   Size: 'size',
   Format: 'format',
   Published: 'published',
+  Progress: 'progress',
 } as const;
 
 export type LibrarySortByType = (typeof LibrarySortByType)[keyof typeof LibrarySortByType];
@@ -290,6 +291,13 @@ export interface SystemSettings {
    * settings backups via `BACKUP_SETTINGS_BLACKLIST`.
    */
   externalLibraryFolders?: string[];
+
+  /**
+   * Folders watched for auto-import (#3889). When the app opens or returns
+   * to the foreground, any new book files found under these paths are
+   * imported automatically. Device-local, excluded from cloud backup.
+   */
+  autoImportFolders?: string[];
 
   keepLogin: boolean;
   autoUpload: boolean;
