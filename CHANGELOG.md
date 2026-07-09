@@ -3,6 +3,39 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v8.13.1] — 2026-07-08
+
+### Added — 翻页动画补全 + 关于页面版本号修复 + bookService 崩溃修复
+
+#### PR #4940 — 翻页动画（幻灯片/卷页）— JS-only port
+- **新增文件**：`utils/pageCurl.ts`（CSS mesh curl 回退）、`utils/pageSlide.ts`（CSS slide overlay）、`app/reader/hooks/useCapturedTurn.ts`（触摸拦截器）、`app/reader/utils/capturedTurn.ts`（captured-page 管线）
+- `types/book.ts`：新增 `PageTurnStyle` 类型（`'push'|'slide'|'curl'`）+ `pageTurnStyle` 字段
+- `services/constants.ts`：`DEFAULT_VIEW_CONFIG` 加 `pageTurnStyle: 'push'`
+- `utils/bridge.ts`：加 `captureWebviewRegion`（web 端 reject，回退 CSS curl）
+- `FoliateViewer.tsx`：调用 `useCapturedTurn` + `applyPageTurnAttributes`，移除 inline no-swipe 块
+- `BooksGrid.tsx`：加 `data-view-transition-root` 属性
+- `ControlPanel.tsx`：加 Animation Style SettingsSelect（Push/Slide/Page Curl，按 `supportsViewTransitionGroup` gating）
+- **跳过原生代码**（swift-rs/Rust/Kotlin/Swift）— Lite 是 web-only
+
+#### PR #5000 — gate captured slide/curl on scrollLocked
+已包含在复制的 `useCapturedTurn.ts` 中：instant highlight 锁定滚动时，slide/curl 翻页也 honor 锁定。
+
+#### 关于页面版本号修复（用户反馈）
+- **问题**：「关于」页面显示 `Version 0.11.4`（上游版本号），不是 Lite 真实版本
+- **根因**：`getAppVersion()` 读 `apps/readest-app/package.json` 的 `version` 字段，自 fork 以来一直卡在上游的 `0.11.4`
+- **修复**：`package.json` version 从 `0.11.4` 改为 `8.13.1`。未来每次发版必须同步更新此字段
+
+#### PR #4962 — bookService 并发导入崩溃修复（READEST-H）
+- **问题**：两个并发导入同一本书时，`createDir` 竞争导致 Windows 上报 "Cannot create a file when that file already exists"
+- **修复**：`bookService.ts` 的 `createDir` 改为幂等递归 `createDir(path, base, true)`，替代 check-then-create
+
+### CI Status
+- ✅ Docker Image workflow — build-and-push success
+- ✅ CI workflow — Smoke test success
+- 镜像已推送：`ghcr.io/cshdotcom/readest-lite:8.13.1` / `8.13` / `latest`
+
+---
+
 ## [v8.13.0] — 2026-07-08
 
 ### Added — 上游 Readest v0.11.18 非覆盖式合入
