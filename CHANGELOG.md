@@ -3,7 +3,7 @@
 All notable changes to Readest Lite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [v8.13.1] — 2026-07-08
+## [v8.13.1] — 2026-07-09
 
 ### Added — 翻页动画补全 + 关于页面版本号修复 + bookService 崩溃修复
 
