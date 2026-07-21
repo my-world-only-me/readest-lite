@@ -753,7 +753,8 @@ const FoliateViewer: React.FC<{
   }, []);
 
   const applyMarginAndGap = () => {
-    const viewSettings = getViewSettings(bookKey)!;
+    const viewSettings = getViewSettings(bookKey);
+    if (!viewSettings) return;
     const viewState = getViewState(bookKey);
     const bookData = getBookData(bookKey);
     const viewInsets = getViewInsets(viewSettings);

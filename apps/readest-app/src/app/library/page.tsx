@@ -165,7 +165,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const { clearBookData } = useBookDataStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const { isSettingsDialogOpen, setSettingsDialogOpen } = useSettingsStore();
-  const { isTransferQueueOpen } = useTransferStore();
+  const isTransferQueueOpen = useTransferStore((state) => state.isTransferQueueOpen);
 
   // Library page pulls user replicas (dictionaries, custom fonts,
   // background textures, OPDS catalogs, bundled settings). Deferred
@@ -276,7 +276,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       checkOPDSSubscriptions(true);
     },
   );
-  useScreenWakeLock(settings.screenWakeLock);
+  // Screen wake lock is now scoped to the reader only (#5104) — keeps the
+  // screen awake while reading, not while browsing the library.
 
   useShortcuts({
     onToggleFullscreen: async () => {
@@ -505,7 +506,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     if (lastBookIds.length === 0) return false;
     const bookIds: string[] = [];
     for (const bookId of lastBookIds) {
-      const book = libraryBooks.find((b) => b.hash === bookId);
+      const book = libraryBooks.find((b) => b.hash === bookId && b.readingStatus !== 'finished');
       if (book && (await appService.isBookAvailable(book))) {
         bookIds.push(book.hash);
       }

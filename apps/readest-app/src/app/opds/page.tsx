@@ -56,6 +56,7 @@ import { normalizeOPDSCustomHeaders } from './utils/customHeaders';
 import { closeOPDSBrowser, stashOPDSReturnTarget } from './utils/opdsClose';
 import { findExistingBookForPublication } from './utils/findExistingBook';
 import Dialog from '@/components/Dialog';
+import { uniqueId } from '@/utils/misc';
 
 type ViewMode = 'feed' | 'publication' | 'search' | 'loading' | 'error';
 
@@ -587,7 +588,7 @@ export default function BrowserPage() {
 
           const pathname = decodeURIComponent(new URL(url).pathname);
           const ext = getFileExtFromMimeType(parsed?.mediaType) || getFileExtFromPath(pathname);
-          const basename = pathname.replaceAll('/', '_');
+          const basename = uniqueId();
           const filename = ext ? `${basename}.${ext}` : basename;
           let dstFilePath = await appService?.resolveFilePath(filename, 'Cache');
           console.log('Downloading to:', url, dstFilePath);

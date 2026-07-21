@@ -211,7 +211,7 @@ export async function GET(req: NextRequest) {
       const sb = await prismaClient.statBook.findMany({
         where: {
           userId: user.id,
-          OR: [{ updatedAt: { gt: since } }, { deletedAt: { gt: since } }],
+          updatedAt: { gt: since },
         },
         orderBy: { updatedAt: 'asc' as const },
         take: 100000,
@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
       const spQuery = {
         where: {
           userId: user.id,
-          OR: [{ updatedAt: { gt: since } }, { deletedAt: { gt: since } }],
+          updatedAt: { gt: since },
           ...(bookParam ? { bookHash: bookParam } : {}),
         },
         orderBy: { updatedAt: 'asc' as const },
