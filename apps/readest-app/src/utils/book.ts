@@ -285,6 +285,13 @@ export const getCurrentPage = (book: Book, progress: BookProgress) => {
       : 0;
 };
 
+export const isCurrentlyReadingBook = (book: Book): boolean =>
+  !book.deletedAt &&
+  book.progress != null &&
+  book.readingStatus !== 'finished' &&
+  book.readingStatus !== 'abandoned' &&
+  book.readingStatus !== 'unread';
+
 export const getBookDirFromWritingMode = (writingMode: WritingMode) => {
   switch (writingMode) {
     case 'horizontal-tb':
