@@ -105,10 +105,26 @@ while (queue.length > 0 && maxPackages-- > 0) {
 
 console.log(`[prune] Resolved ${resolved.size} packages`);
 
-// -- 4. Also include .prisma (generated client) ----------------------------
-const dotPrisma = path.join(NM_DIR, '.prisma');
-if (existsSync(dotPrisma)) {
-  resolved.set('.prisma', dotPrisma);
+// -- 4. Copy .prisma/client/ from @prisma/client's .pnpm store entry --------
+// prisma generate creates the client ONE level above @prisma/client/ in the
+// .pnpm store (e.g. @prisma+client@5.22.0/node_modules/.prisma/client/).
+// This is NOT inside the @prisma/client package dir, so normal package
+// resolution misses it. We locate it from the resolved real path.
+for (const [pkgName, realPath] of resolved) {
+  if (pkgName === '@prisma/client') {
+    // realPath = .../node_modules/.pnpm/@prisma+client@5.22.0/.../node_modules/@prisma/client
+    // Go up 2 levels: @prisma/client → @prisma → node_modules → .prisma/client/
+    const pnpmStoreEntry = path.dirname(path.dirname(realPath));
+    const dotPrismaDir = path.join(pnpmStoreEntry, '.prisma');
+    if (existsSync(dotPrismaDir)) {
+      const outPkg = path.join(OUT_NM, '.prisma');
+      execSync(`cp -rL "${dotPrismaDir}" "${outPkg}"`, { stdio: 'pipe' });
+      console.log(`[prune] Copied .prisma/client/ from ${dotPrismaDir}`);
+    } else {
+      console.log(`[prune] WARNING: .prisma/client/ not found at ${dotPrismaDir}`);
+    }
+    break;
+  }
 }
 
 // -- 5. Copy all packages to flat output -----------------------------------

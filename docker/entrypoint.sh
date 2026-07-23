@@ -22,9 +22,7 @@ fi
 # 注意：不用 pipefail + tail，因为管道会吞掉 prisma 的退出码
 echo "[entrypoint] pushing prisma schema..."
 cd /app/apps/readest-app
-node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false 2>&1
-# prisma db push 默认会调用 generate，但保险起见再显式生成一次
-node ./node_modules/prisma/build/index.js generate --schema=/app/prisma/schema.prisma 2>&1
+node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false --skip-generate 2>&1
 echo "[entrypoint] prisma schema pushed."
 
 # 初始化管理员账号（幂等：存在则更新密码，不存在则创建）
