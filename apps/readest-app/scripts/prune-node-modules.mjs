@@ -59,8 +59,8 @@ function resolveReal(pkgName) {
     const dirs = execSync(
       `ls -d "${PNPM_STORE}/${storeKey}@"*/node_modules/${pkgName}" 2>/dev/null || true`,
       { encoding: 'utf-8' }
-    ).trim().split('
-').filter(Boolean);
+    ).trim().split("
+").filter(Boolean);
 
     // 取最靠后的版本（字符串排序 = 版本排序的近似）
     const latest = dirs.sort().pop();

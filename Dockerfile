@@ -128,6 +128,7 @@ RUN mkdir -p /runtime-nm && \
 
 # ── Stage 3: production runtime ────────────────────────────────────────────
 FROM docker.io/library/node:24-slim AS production
+ARG PUBLIC_BASE_URL
 ENV NODE_ENV=production
 ENV PORT=8225
 ENV HOSTNAME=0.0.0.0
