@@ -144,9 +144,25 @@ jobs:
             [ -z "$TAG" ] && continue
             TAG_NAME="${TAG##*:}"
 
+            # 跳过 SHA 标签（platform 标签命名与其不一致）
+            [[ "$TAG_NAME" == sha-* ]] && echo "  Skip SHA: $TAG_NAME" && continue
+
+            AMD_TAG="${IMG}:${TAG_NAME}-linux-amd64"
+            ARM_TAG="${IMG}:${TAG_NAME}-linux-arm64"
+
+            # 检查 platform 标签是否存在
+            if ! docker manifest inspect "$AMD_TAG" &>/dev/null; then
+              echo "  WARN: $AMD_TAG not found, skipping"
+              continue
+            fi
+            if ! docker manifest inspect "$ARM_TAG" &>/dev/null; then
+              echo "  WARN: $ARM_TAG not found, skipping"
+              continue
+            fi
+
             echo "→ Merging manifest: $TAG"
             docker buildx imagetools create \
               -t "$TAG" \
-              "${IMG}:${TAG_NAME}-linux-amd64" \
-              "${IMG}:${TAG_NAME}-linux-arm64"
+              "$AMD_TAG" \
+              "$ARM_TAG"
           done
