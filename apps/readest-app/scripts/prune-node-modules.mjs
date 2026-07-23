@@ -56,7 +56,7 @@ function resolveReal(pkgName) {
 
   try {
     const raw = execSync(
-      `ls -d "${PNPM_STORE}/${storeKey}@"*/node_modules/${pkgName}" 2>/dev/null || true`,
+      `ls -d "${PNPM_STORE}/${storeKey}@"*/node_modules/${pkgName} 2>/dev/null || true`,
       { encoding: 'utf-8' }
     ).trim();
     const dirs = raw.split(LF).filter(Boolean);
