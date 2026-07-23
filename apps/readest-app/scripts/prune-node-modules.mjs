@@ -128,9 +128,9 @@ for (const [pkgName, realPath] of resolved) {
     if (existsSync(d)) rm(d, { recursive: true, force: true }).catch(() => {});
   }
   execSync(
-    `find "${outPkg}" -type f ( -name "*.ts" -o -name "*.tsx" -o -name "*.map" ` +
+    `find "${outPkg}" -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.map" ` +
     `-o -name "CHANGELOG*" -o -name "README*" -o -name "LICENSE*" ` +
-    `-o -name "CONTRIBUTING*" ) -delete 2>/dev/null || true`,
+    `-o -name "CONTRIBUTING*" \\) -delete 2>/dev/null || true`,
     { stdio: 'pipe' },
   );
 }
