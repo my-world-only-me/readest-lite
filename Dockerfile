@@ -117,10 +117,12 @@ COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
-# 🚀 只拷贝最小运行依赖（~50MB vs 原来的 467MB）
-# 注意：standalone 自带了 traced node_modules，需先移除避免冲突
-RUN rm -rf apps/readest-app/node_modules
-COPY --from=build --chown=node:node /app/deploy/node_modules ./apps/readest-app/node_modules
+# 🚀 追加 entrypoint 需要的额外依赖（~50MB vs 原来的 467MB）
+# standalone 自带 traced node_modules（含 @prisma/client / argon2 等），
+# 我们只合并部署 prisma CLI / @prisma/engines / argon2 / jsonwebtoken / .prisma。
+# Docker COPY 合并行为：已存在的目录会合并内容，不存在的会新建。
+RUN mkdir -p ./apps/readest-app/node_modules
+COPY --from=build --chown=node:node /app/deploy/node_modules/. ./apps/readest-app/node_modules/
 
 RUN mkdir -p /data/db /data/books /data/inbox && chown -R node:node /data
 
