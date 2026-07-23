@@ -8,6 +8,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env['NODE_ENV'] === 'development';
 const appPlatform = process.env['NEXT_PUBLIC_APP_PLATFORM'];
 
+// 允许通过环境变量设置 basePath（如 /books、/readest），
+// 用于在 Nginx 反向代理子路径下部署。
+// 构建时 PUBLC_BASE_URL 写入 next.config，运行时 standalone server 自动识别。
+// 默认空字符串 = 根路径部署，向后兼容。
+const basePath = process.env['PUBLIC_BASE_URL'] || '';
+
 if (isDev) {
   const { initOpenNextCloudflareForDev } = await import('@opennextjs/cloudflare');
   initOpenNextCloudflareForDev();
@@ -45,8 +51,10 @@ const nextConfig = {
     // build mishandles, fanning out workers until it exhausts RAM.
     turbopackFileSystemCacheForDev: true,
   },
-  // Configure assetPrefix or else the server won't properly resolve your assets.
-  assetPrefix: '',
+  // 子路径部署支持，默认根路径
+  basePath,
+  // assetPrefix 必须与 basePath 一致，否则静态资源路径错乱
+  assetPrefix: basePath || '',
   reactStrictMode: true,
   serverExternalPackages: ['isows', 'isomorphic-ws', 'ws', '@prisma/client', 'argon2', 'jsonwebtoken', '.prisma/client'],
   allowedDevOrigins: ['192.168.2.120'],
@@ -170,7 +178,7 @@ const withPWA = pwaDisabled
       reloadOnOnline: true,
       disable: false,
       register: true,
-      scope: '/',
+      scope: basePath || '/',
     });
 
 const withAnalyzer = withBundleAnalyzer({
