@@ -30,10 +30,8 @@ jobs:
             type=semver,pattern={{version}}-linux-amd64
             type=semver,pattern={{major}}-linux-amd64
 
-      - name: Set up Buildx (docker-container)
+      - name: Set up Buildx (default driver)
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker-container
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -57,7 +55,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-and-push-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
@@ -65,9 +63,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Set up QEMU (for arm64 emulation)
-        uses: docker/setup-qemu-action@v3
 
       - name: Docker meta
         id: meta
@@ -82,10 +77,8 @@ jobs:
             type=semver,pattern={{version}}-linux-arm64
             type=semver,pattern={{major}}-linux-arm64
 
-      - name: Set up Buildx (docker-container)
+      - name: Set up Buildx (default driver)
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker-container
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -94,7 +87,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push (arm64 via QEMU)
+      - name: Build and push (arm64, native)
         uses: docker/build-push-action@v6
         with:
           context: .
