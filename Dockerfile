@@ -75,6 +75,7 @@ COPY --from=dependencies /app/packages/simplecc-wasm /app/packages/simplecc-wasm
 COPY --from=dependencies /app/packages/js-mdict /app/packages/js-mdict
 
 COPY . .
+COPY docker/extract-runtime-deps.js /app/scripts/extract-runtime-deps.js
 
 WORKDIR /app/apps/readest-app
 
@@ -89,112 +90,9 @@ RUN pnpm build-web
 # 思路：standalone 已经 trace 了 Next.js 需要的 node_modules，
 # 我们只需要额外补充 prisma CLI、@prisma/client、argon2、jsonwebtoken
 # 及其传递依赖，无需拷贝整个 .pnpm store
-RUN mkdir -p /app/deploy/node_modules && \
-    cd /app/apps/readest-app && \
-    node -e "
-    const fs = require('fs');
-    const path = require('path');
-    const nm = '/app/apps/readest-app/node_modules';
-    const pnpm = '/app/node_modules/.pnpm';
-    const out = '/app/deploy/node_modules';
-
-    // ── config: 运行时需要的额外包（standalone 不包含的） ──
-    const KEEP = [
-      'prisma',           // CLI: db push
-      'argon2',           // 密码哈希（native addon）
-      'jsonwebtoken',     // JWT
-      '@prisma/client',   // ORM client
-      '.prisma',          // Generated Prisma Client
-      // argon2 的编译依赖
-      '@mapbox/node-pre-gyp',
-    ];
-
-    function findPkgRealPath(name) {
-      const p = path.join(nm, name);
-      try {
-        const stat = fs.lstatSync(p);
-        if (stat.isSymbolicLink()) {
-          const target = fs.readlinkSync(p);
-          return path.resolve(path.dirname(nm), target);
-        }
-        if (stat.isDirectory()) return p;
-      } catch {}
-      return null;
-    }
-
-    function resolveDependencies(pkgDir, visited) {
-      if (visited.has(pkgDir)) return;
-      visited.add(pkgDir);
-      const nmDir = path.join(pkgDir, 'node_modules');
-      if (!fs.existsSync(nmDir)) return;
-      for (const name of fs.readdirSync(nmDir)) {
-        if (name.startsWith('.')) continue;
-        const fullPath = path.join(nmDir, name);
-        try {
-          const stat = fs.lstatSync(fullPath);
-          let realPath;
-          if (stat.isSymbolicLink()) {
-            const target = fs.readlinkSync(fullPath);
-            realPath = path.resolve(path.dirname(fullPath), target);
-          } else if (stat.isDirectory()) {
-            realPath = fullPath;
-          } else continue;
-          if (fs.existsSync(realPath) && !visited.has(realPath)) {
-            visited.add(realPath);
-            resolveDependencies(realPath, visited);
-          }
-        } catch {}
-      }
-    }
-
-    // 收集所有需要拷贝的路径
-    const toCopy = new Set();
-
-    for (const name of KEEP) {
-      const realPath = findPkgRealPath(name);
-      if (realPath) {
-        toCopy.add(realPath);
-        resolveDependencies(realPath, toCopy);
-      }
-    }
-
-    // 拷贝到 deploy 目录
-    let totalBytes = 0;
-    for (const src of toCopy) {
-      // 计算目标路径
-      let relPath;
-      if (src.startsWith(pnpm)) {
-        // .pnpm/prisma@5.22.0/node_modules/prisma → prisma
-        relPath = path.relative(pnpm, src);
-        const parts = relPath.split(path.sep);
-        const nmIdx = parts.indexOf('node_modules');
-        if (nmIdx >= 0 && nmIdx < parts.length - 1) {
-          relPath = parts.slice(nmIdx + 1).join(path.sep);
-        } else {
-          // 去掉版本目录前缀
-          relPath = parts.slice(1).join(path.sep);
-        }
-      } else if (src.startsWith(nm)) {
-        relPath = path.relative(nm, src);
-      } else {
-        continue;
-      }
-
-      const dst = path.join(out, relPath);
-      if (!fs.existsSync(path.dirname(dst))) {
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
-      }
-      try {
-        fs.cpSync(src, dst, { recursive: true, force: true });
-        // 统计
-        const stat = fs.statSync(dst);
-        if (stat.isFile()) totalBytes += stat.size;
-      } catch {}
-    }
-
-    console.log('Deploy node_modules size: ~' + Math.round(totalBytes / 1024 / 1024) + ' MB');
-    " && \
-    find /app/deploy/node_modules -name '*.map' -delete 2>/dev/null || true && \
+# 提取脚本见 docker/extract-runtime-deps.js
+RUN mkdir -p /app/deploy && \
+    node /app/scripts/extract-runtime-deps.js && \
     echo 'Deploy size:' && du -sh /app/deploy/node_modules
 
 # ── Stage 3: production runtime ────────────────────────────────────────────
