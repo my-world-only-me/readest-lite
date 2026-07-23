@@ -2,8 +2,8 @@
  * Readest Lite — 从 pnpm monorepo 中提取运行时最小依赖
  *
  * 工作原理：直接扫描 .pnpm store 按包名匹配 prisma / argon2 等，
- * 复制整个 node_modules/ 目录（含包本身及其所有同级依赖）。
- * 这样可以正确处理 Docker COPY 扁平化后的 pnpm 结构。
+ * 用 cp -rL（递归跟随 symlink）复制整个 node_modules/ 目录，
+ * 确保所有传递依赖被扁平化为真实文件。
  *
  * 用法（在 build 阶段、pnpm build-web 完成后）：
  *   node /app/docker/extract-runtime-deps.js
@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const NM = '/app/apps/readest-app/node_modules';
 const PNPM = '/app/node_modules/.pnpm';
@@ -26,16 +27,11 @@ const KEEP = [
 
 // ── 扫描 .pnpm store ────────────────────────────────────────────────
 
-/** 在 .pnpm store 中找到匹配某个包名的所有条目 */
 function findPnpmEntries(pkgName) {
   const entries = [];
   if (!fs.existsSync(PNPM)) return entries;
-
-  // 把 @scope/name 转为 @scope+name（pnpm 的 store 命名规则）
   const prefix = pkgName.replace(/\//g, '+');
-
   for (const entry of fs.readdirSync(PNPM)) {
-    // 匹配：prisma@5.22.0 或 @prisma+client@5.22.0
     const entryPkg = entry.replace(/@[^@]+$/, '');
     if (entryPkg === prefix) {
       entries.push(path.join(PNPM, entry));
@@ -44,33 +40,29 @@ function findPnpmEntries(pkgName) {
   return entries;
 }
 
-/** 从 .pnpm 条目中复制包及其所有同级依赖 */
+/**
+ * 从 .pnpm 条目中复制包及其所有同级依赖。
+ * 使用 cp -rL 确保递归跟随所有 symlink。
+ */
 function copyFromPnpmEntry(entryPath) {
   const nmDir = path.join(entryPath, 'node_modules');
-  if (!fs.existsSync(nmDir)) {
-    console.warn(`  no node_modules in ${path.relative(PNPM, entryPath)}`);
-    return 0;
-  }
+  if (!fs.existsSync(nmDir)) return 0;
 
   let count = 0;
   for (const name of fs.readdirSync(nmDir)) {
     if (name.startsWith('.')) continue;
 
     const src = path.join(nmDir, name);
-    let realSrc = src;
-    try {
-      const s = fs.lstatSync(src);
-      if (s.isSymbolicLink()) {
-        realSrc = path.resolve(path.dirname(src), fs.readlinkSync(src));
-        if (!fs.existsSync(realSrc)) continue;
-      }
-    } catch { continue; }
-
-    // 目标路径：直接用包名（去掉 .pnpm 的版本路径）
     const dst = path.join(OUT, name);
+
+    // 跳过已复制的包
+    if (fs.existsSync(dst)) { count++; continue; }
+
     fs.mkdirSync(path.dirname(dst), { recursive: true });
+
     try {
-      fs.cpSync(realSrc, dst, { recursive: true, force: true });
+      // cp -rL: 递归 + 跟随 symlink → 输出扁平目录，不含任何 symlink
+      execSync(`cp -rL '${src}' '${dst}'`, { stdio: 'ignore', timeout: 30000 });
       count++;
     } catch (e) {
       console.warn(`  CP FAILED: ${name}: ${e.message}`);
@@ -82,23 +74,19 @@ function copyFromPnpmEntry(entryPath) {
 // ── 主逻辑 ────────────────────────────────────────────────────────────
 
 fs.mkdirSync(OUT, { recursive: true });
-let totalCopied = 0;
-
 console.log('[extract] Scanning .pnpm store...');
 
 for (const name of KEEP) {
   const entries = findPnpmEntries(name);
   if (entries.length === 0) {
     console.warn(`[extract] NOT FOUND in .pnpm: ${name}`);
-    // 回退：直接从 node_modules 复制
     const fallback = path.join(NM, name);
     if (fs.existsSync(fallback)) {
       const dst = path.join(OUT, name);
       fs.mkdirSync(path.dirname(dst), { recursive: true });
       try {
-        fs.cpSync(fallback, dst, { recursive: true, force: true });
+        execSync(`cp -rL '${fallback}' '${dst}'`, { stdio: 'ignore', timeout: 30000 });
         console.log(`[extract] ${name}: copied (fallback)`);
-        totalCopied++;
       } catch (e) {
         console.warn(`[extract] FALLBACK FAILED: ${name}: ${e.message}`);
       }
@@ -111,7 +99,6 @@ for (const name of KEEP) {
     console.log(`[extract] ${name}: found ${short}`);
     const copied = copyFromPnpmEntry(entry);
     console.log(`[extract]   -> copied ${copied} packages`);
-    totalCopied += copied;
   }
 }
 
@@ -121,7 +108,7 @@ if (fs.existsSync(prismaGen)) {
   const dst = path.join(OUT, '.prisma');
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   try {
-    fs.cpSync(prismaGen, dst, { recursive: true, force: true });
+    execSync(`cp -rL '${prismaGen}' '${dst}'`, { stdio: 'ignore', timeout: 30000 });
     console.log('[extract] .prisma: copied');
   } catch (e) {
     console.warn(`[extract] .prisma FAILED: ${e.message}`);
