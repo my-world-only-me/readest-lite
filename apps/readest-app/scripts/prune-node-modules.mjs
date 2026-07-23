@@ -10,7 +10,7 @@
  *   node scripts/prune-node-modules.mjs <outDir>
  */
 
-import { mkdir, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -38,20 +38,43 @@ console.log(`[prune] Production deps: ${prodDeps.size}`);
 
 // ── 2. Resolve pnpm symlinks ────────────────────────────────────────────────
 function resolveReal(pkgName) {
-  try {
-    const linkPath = path.join(NM_DIR, ...pkgName.split('/'));
-    if (!existsSync(linkPath)) return null;
-    const target = execSync(`readlink -f "${linkPath}"`, { encoding: 'utf-8' }).trim();
-    return existsSync(target) ? target : null;
-  } catch {
-    return null;
+  // ① 先看顶层 node_modules（直接依赖 — pnpm 会放 symlink 这里）
+  const linkPath = path.join(NM_DIR, ...pkgName.split('/'));
+  if (existsSync(linkPath)) {
+    try {
+      const target = execSync(`readlink -f "${linkPath}"`, { encoding: 'utf-8' }).trim();
+      if (existsSync(target)) return target;
+    } catch { /* fall through to .pnpm search */ }
   }
+
+  // ② 传递依赖不在顶层，直接在 .pnpm store 里搜
+  // pnpm store 命名格式:
+  //   普通包: .pnpm/pkg@version/node_modules/pkg
+  //   scope 包: .pnpm/@scope+name@version/node_modules/@scope/name
+  const storeKey = pkgName.startsWith('@')
+    ? pkgName.slice(1).replace('/', '+')
+    : pkgName;
+
+  try {
+    const dirs = execSync(
+      `ls -d "${PNPM_STORE}/${storeKey}@"*/node_modules/${pkgName}" 2>/dev/null || true`,
+      { encoding: 'utf-8' }
+    ).trim().split('
+').filter(Boolean);
+
+    // 取最靠后的版本（字符串排序 = 版本排序的近似）
+    const latest = dirs.sort().pop();
+    if (latest && existsSync(latest)) return latest;
+  } catch {}
+
+  return null;
 }
 
 // ── 3. Walk full transitive dep tree ────────────────────────────────────────
 const resolved = new Map(); // pkgName -> realPath
 const queue = [...prodDeps];
-let maxPackages = 8000; // safety limit
+let maxPackages = 10000; // safety limit
+let logInterval = 0;
 
 while (queue.length > 0 && maxPackages-- > 0) {
   const pkg = queue.shift();
@@ -63,6 +86,10 @@ while (queue.length > 0 && maxPackages-- > 0) {
     continue;
   }
   resolved.set(pkg, real);
+
+  if (++logInterval % 50 === 0) {
+    console.log(`[prune] Resolving... ${resolved.size} packages so far`);
+  }
 
   // Read its package.json to find transitive deps
   const pkgJsonPath = path.join(real, 'package.json');
