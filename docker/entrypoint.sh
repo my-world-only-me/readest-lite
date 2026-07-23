@@ -22,16 +22,16 @@ fi
 # 注意：不用 pipefail + tail，因为管道会吞掉 prisma 的退出码
 echo "[entrypoint] pushing prisma schema..."
 cd /app/apps/readest-app
-node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false --skip-generate
+node ./node_modules/prisma/build/index.js db push --schema=/app/prisma/schema.prisma --accept-data-loss=false --skip-generate 2>&1
 echo "[entrypoint] prisma schema pushed."
 
 # 初始化管理员账号（幂等：存在则更新密码，不存在则创建）
 # 用自包含的 .mjs 脚本，不依赖 TypeScript 源码链
 echo "[entrypoint] ensuring admin user..."
-node /app/apps/readest-app/scripts/init-admin.mjs
+node /app/apps/readest-app/scripts/init-admin.mjs 2>&1
 echo "[entrypoint] admin user ensured."
 
 # 启动 Next.js standalone server
 echo "[entrypoint] starting Next.js on port ${PORT:-8225}..."
 cd /app
-exec node apps/readest-app/server.js
+exec node apps/readest-app/server.js 2>&1

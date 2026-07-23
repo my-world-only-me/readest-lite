@@ -30,7 +30,7 @@ jobs:
           ADMIN_PASSWORD: SmokeTestPass123!
         run: |
           set -e
-          docker run --rm -d --name readest-smoke \
+          docker run -d --name readest-smoke \
             -p 8225:8225 \
             -e ADMIN_EMAIL=$ADMIN_EMAIL \
             -e ADMIN_PASSWORD=$ADMIN_PASSWORD \
