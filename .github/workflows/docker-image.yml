@@ -1,119 +1,52 @@
-# ───────────────────────────────────────────────────────────────────────────
-# Build ARM64 Docker Image & Push to GHCR
-# ───────────────────────────────────────────────────────────────────────────
-
-name: Build & Push (multi-arch)
+name: Docker Image
 
 on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      # 手动触发时可选平台
-      platforms:
-        description: 'Target platforms'
-        default: 'linux/amd64,linux/arm64'
-        type: choice
-        options:
-          - 'linux/amd64,linux/arm64'
-          - 'linux/arm64'
-
-env:
-  REGISTRY: ghcr.io
-  # 镜像名：ghcr.io/<owner>/readest-lite
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
-      # ── 1. 检出代码 ──────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          submodules: recursive
 
-      # ── 2. 设置 QEMU（用于 ARM64 交叉编译） ──────────────────
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      # ── 3. 设置 Docker Buildx ────────────────────────────────
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # ── 4. 登录 GHCR ─────────────────────────────────────────
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── 5. 生成镜像标签 ──────────────────────────────────────
-      - name: Generate Docker tags
+      - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-          # 只生成基础标签，不加 -amd64/-arm64 后缀
-          # 后缀在下一步通过 docker buildx imagetools 自动处理
 
-      # ── 6. 优化 Dockerfile（ARM 构建内存优化） ──────────────
-      #     原 Dockerfile build 阶段没有 NODE_OPTIONS 限制，
-      #     在 QEMU arm64 下会 OOM。这里自动注入优化参数。
-      - name: Patch Dockerfile for ARM memory optimization
-        run: |
-          # 在 'ENV BUILD_STANDALONE=true' 之后插入内存优化
-          sed -i '/^ENV BUILD_STANDALONE=true$/a\
-          ENV NODE_OPTIONS="--max-old-space-size=4096"\
-          ENV NEXT_DISABLE_SOURCEMAPS=true\
-          ENV NEXT_COMPRESS=false\
-          ENV NEXT_TELEMETRY_DISABLED=1' Dockerfile
-          echo "=== Patched Dockerfile (build stage) ==="
-          grep -A5 'BUILD_STANDALONE\|NODE_OPTIONS\|NEXT_DISABLE\|NEXT_COMPRESS\|NEXT_TELEMETRY' Dockerfile
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # ── 7. 构建并推送（多架构一次完成） ────────────────────
-      #     buildx 会自动为每个 platform 构建并 push
-      #     push=true 确保每个架构的 layer 都被推送
-      - name: Build and push multi-arch image
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          # 双架构：amd64 原生 + arm64 QEMU 模拟
-          platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # inline cache：随镜像推送，不依赖 GHA cache 后端
-          cache-from: |
-            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=inline
-
-      # ── 8. 验证推送结果 ──────────────────────────────────────
-      - name: Verify multi-arch manifest
-        run: |
-          echo "=== Image pushed successfully ==="
-          echo "Registry: ${{ env.REGISTRY }}"
-          echo "Image: ${{ env.IMAGE_NAME }}"
-          echo ""
-          echo "Tags pushed:"
-          echo "${{ steps.meta.outputs.tags }}" | tr '\n' '\n  '
-          echo ""
-          echo "Usage:"
-          echo "  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main"
-          echo ""
-          echo "=== Multi-arch manifest ==="
-          for TAG in ${{ steps.meta.outputs.tags }}; do
-            echo "--- $TAG ---"
-            docker buildx imagetools inspect "$TAG" 2>/dev/null | head -20
-          done
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
