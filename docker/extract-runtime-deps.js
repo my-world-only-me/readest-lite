@@ -169,28 +169,82 @@ for (const pkgName of tracedNames) {
 
 console.log(`[extract] Copied ${copied.size} packages from trace`);
 
-// ── Step 3: 额外添加 entrypoint 需要的包（带所有同级依赖） ──────────
+// ── Step 3: 额外添加 entrypoint 需要的包 ──────────────────────────
 console.log('[extract] === Step 3: add entrypoint-only deps ===');
 
-const EXTRA = ['prisma'];
+// prisma CLI 不在 standalone trace 中（未被 server code import），
+// 但 entrypoint 脚本运行时需调用 prisma migrate。
+// 从 .pnpm store 复制 prisma + 其所有 @prisma/* 依赖。
+const EXTRA_PKGS = ['prisma'];
+const PRISMA_DEPS = [
+  'prisma',
+  '@prisma/engines',
+  '@prisma/engines-version',
+  '@prisma/get-platform',
+];
 
-for (const name of EXTRA) {
-  if (copied.has(path.join(OUT, name))) {
-    console.log(`[extract] Extra: ${name} already copied`);
-    continue;
-  }
+for (const name of PRISMA_DEPS) {
+  const dst = path.join(OUT, name);
+  if (copied.has(dst)) continue;
 
   const entries = findPnpmEntries(name);
   let ok = false;
   for (const entry of entries) {
-    const c = copyPnpmEntrySiblings(entry, copied);
-    if (c > 0) {
-      console.log(`[extract] Extra: ${name} -> ${c} packages (incl. siblings)`);
-      ok = true;
-      break;
+    const entryNM = path.join(entry, 'node_modules');
+    if (!fs.existsSync(entryNM)) continue;
+    const pkgDir = path.join(entryNM, name);
+    if (fs.existsSync(pkgDir) && fs.statSync(pkgDir).isDirectory()) {
+      if (flatCopy(pkgDir, dst)) {
+        copied.add(dst);
+        console.log(`[extract] Extra: ${name} copied from .pnpm`);
+        ok = true;
+        break;
+      }
+    }
+    // 回退：复制整个 entry node_modules/（处理 scoped 包结构）
+    for (const dep of fs.readdirSync(entryNM)) {
+      if (dep.startsWith('.') || dep === name) continue;
+      const depDst = path.join(OUT, dep);
+      if (copied.has(depDst)) continue;
+      const depSrc = path.join(entryNM, dep);
+      let realSrc = depSrc;
+      try {
+        const st = fs.lstatSync(depSrc);
+        if (st.isSymbolicLink()) {
+          realSrc = path.resolve(path.dirname(depSrc), fs.readlinkSync(depSrc));
+          if (!fs.existsSync(realSrc)) continue;
+        }
+      } catch { continue; }
+      if (flatCopy(realSrc, depDst)) {
+        copied.add(depDst);
+        console.log(`  [extract]   sibling: ${dep}`);
+      }
     }
   }
-  if (!ok) console.warn(`[extract] Extra: ${name} NOT FOUND`);
+  if (!ok && name !== 'prisma') {
+    console.warn(`[extract] Extra: ${name} NOT FOUND in .pnpm`);
+  }
+}
+
+// 额外：从 top-level node_modules 复制 prisma 及其依赖（如果 .pnpm 找不到）
+// 这是最后的回退方案，因为 app/node_modules/prisma 可能是直接安装的
+for (const name of EXTRA_PKGS) {
+  const dst = path.join(OUT, name);
+  if (copied.has(dst)) continue;
+  const appPath = path.join(NM_APP, name);
+  if (!fs.existsSync(appPath)) continue;
+  try {
+    if (fs.lstatSync(appPath).isSymbolicLink()) {
+      const rp = pnpmRealPath(appPath);
+      if (rp && fs.existsSync(rp) && flatCopy(rp, dst)) {
+        copied.add(dst);
+        console.log(`[extract] Extra fallback: ${name} from NM_APP symlink`);
+      }
+    } else if (fs.statSync(appPath).isDirectory() && flatCopy(appPath, dst)) {
+      copied.add(dst);
+      console.log(`[extract] Extra fallback: ${name} from NM_APP dir`);
+    }
+  } catch {}
 }
 
 // ── 清理 .map ──
