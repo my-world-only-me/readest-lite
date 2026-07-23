@@ -1,8 +1,9 @@
 /**
  * Readest Lite — 从 pnpm monorepo 中提取运行时最小依赖
  *
- * 只提取 entrypoint.sh 需要的生产依赖（prisma / argon2 / @prisma-client / jsonwebtoken
- * 及其传递依赖），输出扁平 node_modules 供生产镜像使用。
+ * 工作原理：直接扫描 .pnpm store 按包名匹配 prisma / argon2 等，
+ * 复制整个 node_modules/ 目录（含包本身及其所有同级依赖）。
+ * 这样可以正确处理 Docker COPY 扁平化后的 pnpm 结构。
  *
  * 用法（在 build 阶段、pnpm build-web 完成后）：
  *   node /app/docker/extract-runtime-deps.js
@@ -15,116 +16,119 @@ const NM = '/app/apps/readest-app/node_modules';
 const PNPM = '/app/node_modules/.pnpm';
 const OUT = '/app/deploy/node_modules';
 
-// 运行时需要的包名（standalone 产物不包含这些）
+// 运行时需要的包名
 const KEEP = [
-  'prisma',           // CLI: db push
-  'argon2',           // 密码哈希（native addon）
-  'jsonwebtoken',     // JWT 签发/验证
-  '@prisma/client',   // ORM client
-  '.prisma',          // 生成的 Prisma Client
+  'prisma',
+  'argon2',
+  'jsonwebtoken',
+  '@prisma/client',
 ];
 
-// ── 辅助函数 ──────────────────────────────────────────────────────────
+// ── 扫描 .pnpm store ────────────────────────────────────────────────
 
-/** 找出包的真正路径（跟随 pnpm symlink） */
-function realPkg(name) {
-  const p = path.join(NM, name);
-  try {
-    const s = fs.lstatSync(p);
-    if (s.isSymbolicLink()) {
-      return path.resolve(path.dirname(NM), fs.readlinkSync(p));
+/** 在 .pnpm store 中找到匹配某个包名的所有条目 */
+function findPnpmEntries(pkgName) {
+  const entries = [];
+  if (!fs.existsSync(PNPM)) return entries;
+
+  // 把 @scope/name 转为 @scope+name（pnpm 的 store 命名规则）
+  const prefix = pkgName.replace(/\//g, '+');
+
+  for (const entry of fs.readdirSync(PNPM)) {
+    // 匹配：prisma@5.22.0 或 @prisma+client@5.22.0
+    const entryPkg = entry.replace(/@[^@]+$/, '');
+    if (entryPkg === prefix) {
+      entries.push(path.join(PNPM, entry));
     }
-    if (s.isDirectory()) return p;
-  } catch (e) {
-    console.warn(`[extract] SKIP: ${name} — ${e.message}`);
   }
-  return null;
+  return entries;
 }
 
-/** 计算扁平化后的目标路径 */
-function flatDst(pkgDir) {
-  if (pkgDir.startsWith(PNPM)) {
-    const rel = path.relative(PNPM, pkgDir);
-    const parts = rel.split(path.sep);
-    const nmIdx = parts.indexOf('node_modules');
-    if (nmIdx >= 0 && nmIdx < parts.length - 1) {
-      return parts.slice(nmIdx + 1).join(path.sep);
-    }
-    return parts.slice(1).join(path.sep);
+/** 从 .pnpm 条目中复制包及其所有同级依赖 */
+function copyFromPnpmEntry(entryPath) {
+  const nmDir = path.join(entryPath, 'node_modules');
+  if (!fs.existsSync(nmDir)) {
+    console.warn(`  no node_modules in ${path.relative(PNPM, entryPath)}`);
+    return 0;
   }
-  if (pkgDir.startsWith(NM)) {
-    return path.relative(NM, pkgDir);
-  }
-  return null;
-}
 
-/**
- * pnpm 的结构：包和它的依赖在同一个 .pnpm/X/node_modules/ 目录下。
- * 例如 prisma@5.22.0/node_modules/ 下同时有：
- *   prisma/        ← 包本身
- *   @prisma/       ← 它的依赖（symlink 到其他 .pnpm 包）
- *
- * 此函数返回同一目录下的所有包。
- */
-function siblingDeps(pkgDir) {
-  const parent = path.dirname(pkgDir); // .pnpm/prisma@5.22.0/node_modules/
-  const deps = [];
-  if (!fs.existsSync(parent)) return deps;
-  for (const name of fs.readdirSync(parent)) {
+  let count = 0;
+  for (const name of fs.readdirSync(nmDir)) {
     if (name.startsWith('.')) continue;
-    const fp = path.join(parent, name);
+
+    const src = path.join(nmDir, name);
+    let realSrc = src;
     try {
-      const s = fs.lstatSync(fp);
-      let real = fp;
+      const s = fs.lstatSync(src);
       if (s.isSymbolicLink()) {
-        real = path.resolve(path.dirname(fp), fs.readlinkSync(fp));
+        realSrc = path.resolve(path.dirname(src), fs.readlinkSync(src));
+        if (!fs.existsSync(realSrc)) continue;
       }
-      if (fs.existsSync(real) && (fs.statSync(real).isDirectory() || s.isDirectory())) {
-        const fn = flatDst(real);
-        if (fn) deps.push({ src: real, dstName: fn });
-      }
-    } catch {}
+    } catch { continue; }
+
+    // 目标路径：直接用包名（去掉 .pnpm 的版本路径）
+    const dst = path.join(OUT, name);
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    try {
+      fs.cpSync(realSrc, dst, { recursive: true, force: true });
+      count++;
+    } catch (e) {
+      console.warn(`  CP FAILED: ${name}: ${e.message}`);
+    }
   }
-  return deps;
+  return count;
 }
 
 // ── 主逻辑 ────────────────────────────────────────────────────────────
 
 fs.mkdirSync(OUT, { recursive: true });
-const collected = [];   // { src, dstName }
+let totalCopied = 0;
+
+console.log('[extract] Scanning .pnpm store...');
 
 for (const name of KEEP) {
-  const rp = realPkg(name);
-  if (!rp) continue;
+  const entries = findPnpmEntries(name);
+  if (entries.length === 0) {
+    console.warn(`[extract] NOT FOUND in .pnpm: ${name}`);
+    // 回退：直接从 node_modules 复制
+    const fallback = path.join(NM, name);
+    if (fs.existsSync(fallback)) {
+      const dst = path.join(OUT, name);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      try {
+        fs.cpSync(fallback, dst, { recursive: true, force: true });
+        console.log(`[extract] ${name}: copied (fallback)`);
+        totalCopied++;
+      } catch (e) {
+        console.warn(`[extract] FALLBACK FAILED: ${name}: ${e.message}`);
+      }
+    }
+    continue;
+  }
 
-  if (rp.startsWith(PNPM)) {
-    // 从 .pnpm 提取：复制此包及其同级依赖
-    const siblings = siblingDeps(rp);
-    for (const sib of siblings) collected.push(sib);
-  } else {
-    // 非 .pnpm 路径（如 .prisma），直接复制
-    const fn = flatDst(rp);
-    if (fn) collected.push({ src: rp, dstName: fn });
+  for (const entry of entries) {
+    const short = path.relative(PNPM, entry);
+    console.log(`[extract] ${name}: found ${short}`);
+    const copied = copyFromPnpmEntry(entry);
+    console.log(`[extract]   -> copied ${copied} packages`);
+    totalCopied += copied;
   }
 }
 
-// 去重拷贝
-const seen = new Set();
-let copied = 0;
-for (const { src, dstName } of collected) {
-  if (seen.has(dstName)) continue;
-  seen.add(dstName);
-  const dst = path.join(OUT, dstName);
+// 单独处理 .prisma（生成的 Prisma Client，不在 .pnpm 中）
+const prismaGen = path.join(NM, '.prisma');
+if (fs.existsSync(prismaGen)) {
+  const dst = path.join(OUT, '.prisma');
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   try {
-    fs.cpSync(src, dst, { recursive: true, force: true });
-    copied++;
+    fs.cpSync(prismaGen, dst, { recursive: true, force: true });
+    console.log('[extract] .prisma: copied');
   } catch (e) {
-    console.warn(`[extract] CP FAILED: ${dstName}: ${e.message}`);
+    console.warn(`[extract] .prisma FAILED: ${e.message}`);
   }
 }
 
-// 清理 .map 文件
+// ── 清理 .map ──
 let mapDel = 0;
 try {
   for (const f of fs.readdirSync(OUT, { recursive: true })) {
@@ -133,33 +137,28 @@ try {
     }
   }
 } catch {}
+console.log(`[extract] .map deleted: ${mapDel}`);
 
-// 统计大小
-let totalBytes = 0;
+// ── 统计 ──
+let bytes = 0;
 (function walk(d) {
   for (const e of fs.readdirSync(d)) {
     const fp = path.join(d, e);
     const s = fs.statSync(fp);
-    if (s.isFile()) totalBytes += s.size;
+    if (s.isFile()) bytes += s.size;
     else if (s.isDirectory()) walk(fp);
   }
 })(OUT);
+console.log(`[extract] Output size: ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
-console.log(`[extract] Done!`);
-console.log(`[extract]   Packages kept:    ${KEEP.length}`);
-console.log(`[extract]   Dirs resolved:     ${collected.length}`);
-console.log(`[extract]   Dirs copied:       ${copied}`);
-console.log(`[extract]   .map deleted:      ${mapDel}`);
-console.log(`[extract]   Output size:       ${(totalBytes / 1024 / 1024).toFixed(1)} MB`);
-
-// Top 10 largest
+// Top packages
 const pkgs = fs.readdirSync(OUT).filter(n => !n.startsWith('.'));
 const sizes = pkgs.map(n => {
   let s = 0;
   (function walk(d) { try { for (const e of fs.readdirSync(d)) { const fp = path.join(d, e); const st = fs.statSync(fp); if (st.isFile()) s += st.size; else if (st.isDirectory()) walk(fp); } } catch {} })(path.join(OUT, n));
-  return { n, sizeMB: (s / 1024 / 1024).toFixed(1) };
-}).sort((a, b) => parseFloat(b.sizeMB) - parseFloat(a.sizeMB));
-console.log(`[extract] Top packages:`);
+  return { n, s };
+}).sort((a, b) => b.s - a.s);
+console.log('[extract] Top packages:');
 for (const p of sizes.slice(0, 10)) {
-  console.log(`  ${p.n}: ${p.sizeMB} MB`);
+  console.log(`  ${p.n}: ${(p.s/1024/1024).toFixed(1)} MB`);
 }
