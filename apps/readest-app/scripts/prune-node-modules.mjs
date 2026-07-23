@@ -118,7 +118,7 @@ for (const [pkgName, realPath] of resolved) {
     const dotPrismaDir = path.join(pnpmStoreEntry, '.prisma');
     if (existsSync(dotPrismaDir)) {
       const outPkg = path.join(OUT_NM, '.prisma');
-      execSync(`cp -rL "${dotPrismaDir}" "${outPkg}"`, { stdio: 'pipe' });
+      execSync(`mkdir -p "${OUT_NM}" && cp -rL "${dotPrismaDir}" "${outPkg}"`, { stdio: 'pipe' });
       console.log(`[prune] Copied .prisma/client/ from ${dotPrismaDir}`);
     } else {
       console.log(`[prune] WARNING: .prisma/client/ not found at ${dotPrismaDir}`);
