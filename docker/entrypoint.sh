@@ -18,7 +18,7 @@ if [ ! -f /data/config.json ]; then
 fi
 
 # prisma db push 同步 schema（无 migration 历史，直接 push）
-# 用 apps/readest-app/node_modules 下的 prisma CLI（完整依赖树）
+# 用 apps/readest-app/node_modules 下的 prisma CLI（扁平化拷贝，无需 .pnpm store）
 # 注意：不用 pipefail + tail，因为管道会吞掉 prisma 的退出码
 echo "[entrypoint] pushing prisma schema..."
 cd /app/apps/readest-app

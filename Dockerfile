@@ -114,6 +114,15 @@ WORKDIR /app/apps/readest-app
 ENV BUILD_STANDALONE=true
 RUN pnpm build-web
 
+# Create a flat pruned node_modules for production image.
+# Only production deps + transitive deps are copied (no typescript, eslint, etc.).
+# Saves ~2GB vs copying the full pnpm .pnpm store.
+RUN mkdir -p /runtime-nm && \
+    node scripts/prune-node-modules.mjs /runtime-nm && \
+    rm -rf /runtime-nm/node_modules/.prisma/client/deny          `# prisma webpack deny list` \
+           /runtime-nm/node_modules/.prisma/client/optimizations  `# prisma engine optimizer` \
+           2>/dev/null; true
+
 # ── Stage 3: production runtime ────────────────────────────────────────────
 FROM docker.io/library/node:24-slim AS production
 ENV NODE_ENV=production
@@ -139,13 +148,9 @@ COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
 # 拷贝运行时需要的 node_modules。
-# standalone 构建会 trace Next.js 的依赖，但 prisma CLI 用于容器启动时
-# 的 db push，需要完整的 node_modules 树（pnpm 的符号链接结构在 COPY 后
-# 会断裂，所以需要拷贝整个 apps/readest-app/node_modules）。
-# 这会让镜像增大约 300-500MB，但保证了 prisma CLI、argon2、jsonwebtoken
-# 都能正常工作。
-COPY --from=build --chown=node:node /app/apps/readest-app/node_modules ./apps/readest-app/node_modules
-COPY --from=build --chown=node:node /app/node_modules/.pnpm ./node_modules/.pnpm
+# 从 build 阶段的 /runtime-nm 拷贝扁平化的 node_modules（仅生产依赖 + 传递依赖），
+# 不含 typescript/eslint/playwright 等 dev 依赖，比拷贝整个 .pnpm store 节省约 2GB。
+COPY --from=build --chown=node:node /runtime-nm/node_modules ./apps/readest-app/node_modules
 
 # 创建数据目录
 RUN mkdir -p /data/db /data/books /data/inbox && chown -R node:node /data
