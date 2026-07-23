@@ -94,6 +94,13 @@ RUN mkdir -p /app/deploy && \
     node /app/docker/extract-runtime-deps.js && \
     echo "Deploy size:" && du -sh /app/deploy/node_modules
 
+# ── Stage 2b: standalone-slim（去除 standalone 自带的 pnpm symlink node_modules）────
+FROM build AS standalone-slim
+WORKDIR /app
+COPY --from=build /app/apps/readest-app/.next/standalone ./
+# 删除两层的 pnpm symlink（指向不存在的 .pnpm 目录，留在 layer 里纯浪费）
+RUN rm -rf node_modules apps/readest-app/node_modules
+
 # ── Stage 3: production runtime ────────────────────────────────────────────
 FROM docker.io/library/node:24-slim AS production
 ENV NODE_ENV=production
@@ -108,8 +115,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl sqlite3 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 拷贝 standalone 产物（含 Next.js 已 trace 的最小 node_modules）
-COPY --from=build --chown=node:node /app/apps/readest-app/.next/standalone ./
+# 拷贝瘦身后的 standalone（不含 node_modules，仅 ~10MB）
+COPY --from=standalone-slim --chown=node:node /app/. ./
 COPY --from=build --chown=node:node /app/apps/readest-app/.next/static ./apps/readest-app/.next/static
 COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-app/public
 
@@ -117,11 +124,11 @@ COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
-# 🚀 替换为扁平化 node_modules（从 .pnpm store 提取，无 symlink）
-# standalone 自带的 traced node_modules 是 pnpm symlink（指向不存在
-# 的 .pnpm 目录），必须移除；用 deploy/node_modules 替代。
-RUN rm -rf apps/readest-app/node_modules
+# 🚀 拷贝扁平化 runtime 依赖（从 .pnpm store 提取，无 symlink）
 COPY --from=build --chown=node:node /app/deploy/node_modules/. ./apps/readest-app/node_modules/
+# server.js 从 /app 启动，顶层 node_modules（框架依赖）+ app 层（应用依赖）都需要。
+# symlink 让两者指向同一份扁平化依赖，零额外空间。
+RUN ln -s apps/readest-app/node_modules node_modules
 
 RUN mkdir -p /data/db /data/books /data/inbox && chown -R node:node /data
 

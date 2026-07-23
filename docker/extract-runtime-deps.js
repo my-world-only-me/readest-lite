@@ -19,7 +19,9 @@ const { execSync } = require('child_process');
 
 const NM_APP = '/app/apps/readest-app/node_modules';
 const PNPM = '/app/node_modules/.pnpm';
-const STANDALONE_NM = '/app/apps/readest-app/.next/standalone/apps/readest-app/node_modules';
+const STANDALONE_ROOT = '/app/apps/readest-app/.next/standalone';
+const STANDALONE_NM_APP = STANDALONE_ROOT + '/apps/readest-app/node_modules';
+const STANDALONE_NM_TOP = STANDALONE_ROOT + '/node_modules';
 const OUT = '/app/deploy/node_modules';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -87,27 +89,32 @@ function copyPnpmEntrySiblings(entryPath, copiedSet) {
 // ── 主逻辑 ────────────────────────────────────────────────────────────
 
 fs.mkdirSync(OUT, { recursive: true });
-console.log('[extract] === Step 1: scan standalone traced packages ===');
+console.log('[extract] === Step 1: scan standalone traced packages (2 levels) ===');
 
-const tracedNames = []; // 收集所有被追踪的包名
+const tracedNames = new Set();
 
-if (fs.existsSync(STANDALONE_NM)) {
-  for (const name of fs.readdirSync(STANDALONE_NM)) {
+/** 扫描一个 standalone node_modules 目录，收集包名 */
+function scanStandaloneNM(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
     if (name.startsWith('.')) continue;
-    tracedNames.push(name);
-    // scoped 包：读取子目录（@scope/name）
+    tracedNames.add(name);
+    // scoped 包：读取子目录
     if (name.startsWith('@')) {
-      const appScope = path.join(NM_APP, name);
-      if (fs.existsSync(appScope)) {
-        for (const sub of fs.readdirSync(appScope)) {
-          if (!sub.startsWith('.')) tracedNames.push(`${name}/${sub}`);
+      const subDir = path.join(dir, name);
+      if (fs.statSync(subDir).isDirectory()) {
+        for (const sub of fs.readdirSync(subDir)) {
+          if (!sub.startsWith('.')) tracedNames.add(`${name}/${sub}`);
         }
       }
     }
   }
 }
 
-console.log(`[extract] Found ${tracedNames.length} traced packages`);
+scanStandaloneNM(STANDALONE_NM_TOP);  // 顶层：框架依赖
+scanStandaloneNM(STANDALONE_NM_APP);  // 应用层：app 依赖
+
+console.log(`[extract] Found ${tracedNames.size} unique traced packages`);
 
 // ── Step 2: 从 .pnpm store 复制每个包 ─────────────────────────────
 console.log('[extract] === Step 2: copy packages from .pnpm store ===');
@@ -118,13 +125,19 @@ for (const pkgName of tracedNames) {
   const dst = path.join(OUT, pkgName);
   if (copied.has(dst)) continue;
 
-  // 尝试 1: 从 standalone 的 symlink 解析真实路径
-  const standalonePath = path.join(STANDALONE_NM, pkgName);
-  const realPath = fs.existsSync(standalonePath) ? pnpmRealPath(standalonePath) : null;
-  if (realPath && fs.existsSync(realPath) && flatCopy(realPath, dst)) {
-    copied.add(dst);
-    continue;
+  // 尝试 1: 从 standalone（顶层或 app 层）的 symlink 解析真实路径
+  let found = false;
+  for (const baseDir of [STANDALONE_NM_TOP, STANDALONE_NM_APP]) {
+    const sp = path.join(baseDir, pkgName);
+    if (!fs.existsSync(sp)) continue;
+    const rp = pnpmRealPath(sp);
+    if (rp && fs.existsSync(rp) && flatCopy(rp, dst)) {
+      copied.add(dst);
+      found = true;
+      break;
+    }
   }
+  if (found) continue;
 
   // 尝试 2: 直接从完整 node_modules 复制
   const appPath = path.join(NM_APP, pkgName);
