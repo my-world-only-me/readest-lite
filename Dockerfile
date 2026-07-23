@@ -117,11 +117,10 @@ COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
-# 🚀 追加 entrypoint 需要的额外依赖（~50MB vs 原来的 467MB）
-# standalone 自带 traced node_modules（含 @prisma/client / argon2 等），
-# 我们只合并部署 prisma CLI / @prisma/engines / argon2 / jsonwebtoken / .prisma。
-# Docker COPY 合并行为：已存在的目录会合并内容，不存在的会新建。
-RUN mkdir -p ./apps/readest-app/node_modules
+# 🚀 替换为扁平化 node_modules（从 .pnpm store 提取，无 symlink）
+# standalone 自带的 traced node_modules 是 pnpm symlink（指向不存在
+# 的 .pnpm 目录），必须移除；用 deploy/node_modules 替代。
+RUN rm -rf apps/readest-app/node_modules
 COPY --from=build --chown=node:node /app/deploy/node_modules/. ./apps/readest-app/node_modules/
 
 RUN mkdir -p /data/db /data/books /data/inbox && chown -R node:node /data
