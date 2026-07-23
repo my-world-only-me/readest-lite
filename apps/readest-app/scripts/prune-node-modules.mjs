@@ -51,7 +51,7 @@ function resolveReal(pkgName) {
 
   // transitive deps live only in .pnpm store
   const storeKey = pkgName.startsWith('@')
-    ? pkgName.slice(1).replace('/', '+')
+    ? '@' + pkgName.slice(1).replace('/', '+')
     : pkgName;
 
   try {
