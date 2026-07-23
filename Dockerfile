@@ -112,6 +112,10 @@ WORKDIR /app/apps/readest-app
 
 # Opt-in standalone build
 ENV BUILD_STANDALONE=true
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NEXT_DISABLE_SOURCEMAPS=true
+ENV NEXT_COMPRESS=false
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build-web
 
 # ── Stage 3: production runtime ────────────────────────────────────────────
