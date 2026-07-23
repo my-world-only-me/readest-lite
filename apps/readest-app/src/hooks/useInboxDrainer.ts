@@ -24,10 +24,10 @@ function randomUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // Fallback: timestamp + random suffix.
-  const arr = new Uint32Array(4);
-  crypto.getRandomValues(arr);
-  return `${Date.now().toString(36)}-${arr[0].toString(36)}${arr[1].toString(36)}${arr[2].toString(36)}${arr[3].toString(36)}`;
+  // Uint32Array index access is `number | undefined` under strictest tsconfig.
+  const view = new Uint32Array(4);
+  crypto.getRandomValues(view);
+  return `${Date.now().toString(36)}-${view[0]!.toString(36)}${view[1]!.toString(36)}${view[2]!.toString(36)}${view[3]!.toString(36)}`;
 }
 
 function getDeviceId(): string {

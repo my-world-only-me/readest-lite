@@ -21,9 +21,11 @@ function safeRandomUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  const arr = new Uint32Array(4);
-  crypto.getRandomValues(arr);
-  return `${Date.now().toString(36)}-${arr[0].toString(36)}${arr[1].toString(36)}${arr[2].toString(36)}${arr[3].toString(36)}`;
+  // Uint32Array index access is `number | undefined` under strictest tsconfig;
+  // we know the array has exactly 4 elements, so use non-null assertions.
+  const view = new Uint32Array(4);
+  crypto.getRandomValues(view);
+  return `${Date.now().toString(36)}-${view[0]!.toString(36)}${view[1]!.toString(36)}${view[2]!.toString(36)}${view[3]!.toString(36)}`;
 }
 
 type ItemStatus = 'working' | 'done' | 'error';
