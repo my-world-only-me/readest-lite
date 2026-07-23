@@ -112,6 +112,8 @@ WORKDIR /app/apps/readest-app
 
 # Opt-in standalone build
 ENV BUILD_STANDALONE=true
+# 限制 Node heap 避免低内存 runner（4GB ARM）OOM
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN pnpm build-web
 
 # ── Stage 3: production runtime ────────────────────────────────────────────
