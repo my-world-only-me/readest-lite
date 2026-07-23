@@ -139,6 +139,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 拷贝 standalone 构建产物
+# standalone 输出也含自己的 traced node_modules，但与后面的精简版冲突，
+# 所以拷完后立即删除，用 /runtime-nm 替代。
 COPY --from=build --chown=node:node /app/apps/readest-app/.next/standalone ./
 COPY --from=build --chown=node:node /app/apps/readest-app/.next/static ./apps/readest-app/.next/static
 COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-app/public
@@ -147,8 +149,10 @@ COPY --from=build --chown=node:node /app/apps/readest-app/public ./apps/readest-
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
-# 拷贝运行时需要的 node_modules。
-# 从 build 阶段的 /runtime-nm 拷贝扁平化的 node_modules（仅生产依赖 + 传递依赖），
+# 删除 standalone 自带的 traced node_modules — 我们用自己精简的版本
+RUN rm -rf apps/readest-app/node_modules node_modules 2>/dev/null; true
+
+# 拷贝运行时需要的 node_modules（扁平化，仅生产依赖 + 传递依赖）。
 # 不含 typescript/eslint/playwright 等 dev 依赖，比拷贝整个 .pnpm store 节省约 2GB。
 COPY --from=build --chown=node:node /runtime-nm/node_modules ./apps/readest-app/node_modules
 
