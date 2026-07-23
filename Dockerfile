@@ -118,6 +118,8 @@ COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/readest-app/scripts ./apps/readest-app/scripts
 
 # 🚀 只拷贝最小运行依赖（~50MB vs 原来的 467MB）
+# 注意：standalone 自带了 traced node_modules，需先移除避免冲突
+RUN rm -rf apps/readest-app/node_modules
 COPY --from=build --chown=node:node /app/deploy/node_modules ./apps/readest-app/node_modules
 
 RUN mkdir -p /data/db /data/books /data/inbox && chown -R node:node /data
