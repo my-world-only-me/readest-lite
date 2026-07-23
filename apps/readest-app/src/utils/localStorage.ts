@@ -11,6 +11,8 @@
 import { createHmac } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { createReadStream, createWriteStream } from 'fs';
 
 const BOOKS_DIR = process.env['BOOKS_DIR'] || '/data/books';
@@ -271,9 +273,6 @@ export const mergePartsForKey = async (fileKey: string, expectedTotal: number): 
   await fs.mkdir(targetDir, { recursive: true });
 
   // 流式合并：每个 part createReadStream → pipe 到 target writeStream
-  const { Readable } = await import('stream');
-  const { pipeline } = await import('stream/promises');
-
   const partStreams = partNames.map((name) => createReadStream(path.join(partsDir, name)));
   const concat = Readable.from((async function* () {
     for (const s of partStreams) {
