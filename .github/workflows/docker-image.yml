@@ -52,7 +52,6 @@ jobs:
           provenance: false
           sbom: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   build-and-push-arm64:
     runs-on: ubuntu-24.04-arm
@@ -99,7 +98,6 @@ jobs:
           provenance: false
           sbom: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   merge-manifest:
     runs-on: ubuntu-latest
