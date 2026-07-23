@@ -97,9 +97,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # GitHub Actions 缓存：提速后续构建
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # inline cache：随镜像推送，不依赖 GHA cache 后端
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=inline
 
       # ── 8. 验证推送结果 ──────────────────────────────────────
       - name: Verify multi-arch manifest
