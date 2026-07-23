@@ -16,6 +16,16 @@ import {
 import { getClipOptions } from '@/services/send/clipOptions';
 import { invoke } from '@tauri-apps/api/core';
 
+/** crypto.randomUUID() with HTTP fallback (not available on plain IP). */
+function safeRandomUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const arr = new Uint32Array(4);
+  crypto.getRandomValues(arr);
+  return `${Date.now().toString(36)}-${arr[0].toString(36)}${arr[1].toString(36)}${arr[2].toString(36)}${arr[3].toString(36)}`;
+}
+
 type ItemStatus = 'working' | 'done' | 'error';
 
 interface SendItem {
@@ -69,7 +79,7 @@ export default function SendPage() {
   const handleFiles = useCallback(
     async (files: File[]) => {
       for (const file of files) {
-        const id = crypto.randomUUID();
+        const id = safeRandomUUID();
         setItems((prev) => [...prev, { id, label: file.name, status: 'working' }]);
         try {
           const resolved = await convertFileIfNeeded(file);
@@ -89,7 +99,7 @@ export default function SendPage() {
     const target = url.trim();
     if (!/^https?:\/\//i.test(target)) return;
     setUrl('');
-    const id = crypto.randomUUID();
+    const id = safeRandomUUID();
     setItems((prev) => [...prev, { id, label: target, status: 'working' }]);
     try {
       // Tauri-only: route through the Rust `clip_url` command which

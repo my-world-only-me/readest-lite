@@ -18,16 +18,28 @@ import type { DBSendInboxItem } from '@/types/sendRecords';
 const DRAIN_INTERVAL_MS = 60_000;
 const DEVICE_ID_KEY = 'readest-send-device-id';
 
+function randomUUID(): string {
+  // crypto.randomUUID() requires a secure context (HTTPS/localhost).
+  // Fallback for HTTP plain IP access.
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback: timestamp + random suffix.
+  const arr = new Uint32Array(4);
+  crypto.getRandomValues(arr);
+  return `${Date.now().toString(36)}-${arr[0].toString(36)}${arr[1].toString(36)}${arr[2].toString(36)}${arr[3].toString(36)}`;
+}
+
 function getDeviceId(): string {
   try {
     let id = localStorage.getItem(DEVICE_ID_KEY);
     if (!id) {
-      id = crypto.randomUUID();
+      id = randomUUID();
       localStorage.setItem(DEVICE_ID_KEY, id);
     }
     return id;
   } catch {
-    return crypto.randomUUID();
+    return randomUUID();
   }
 }
 
